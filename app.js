@@ -5888,6 +5888,86 @@ function clSendToRegistroSheet(sess) {
   }).catch(function(e) { console.warn('Error enviando a Sheet de registro:', e); });
 }
 
+// ── DECISION #6: SHOE CSV STRATEGY ─────────────────────────────────────────
+// Detect if session contains shoes, map shoe departments, condition IDs, and categories
+
+function clDetectShoeSession() {
+  var sess = JSON.parse(localStorage.getItem('cl_ebay_session') || '[]');
+  var SHOE_CATEGORIES = ['Shoes','Sneakers','Boots','Athletic Shoes','Casual Shoes','Dress Shoes','Sandals','Loafers'];
+  return sess.some(function(r) { return SHOE_CATEGORIES.includes(r.type); });
+}
+
+function clShoeDept() {
+  return cl.gender === 'mens'   ? 'Men'
+       : cl.gender === 'womens' ? 'Women'
+       : cl.gender === 'boys'   ? 'Boys'
+       : cl.gender === 'girls'  ? 'Girls'
+       : cl.gender === 'kids'   ? 'Unisex Kids'
+       : cl.gender === 'baby'   ? 'Unisex Baby & Toddler'
+       : 'Unisex Adults';
+}
+
+function clGetShoeEbayCategoryId() {
+  const m = cl.gender === 'mens' ? {
+    'Shoes':93427,'Sneakers':15709,'Boots':11498,'Athletic Shoes':15709,'Casual Shoes':93427,'Dress Shoes':53557,'Sandals':53557,'Loafers':93427
+  } : cl.gender === 'womens' ? {
+    'Shoes':55793,'Sneakers':15709,'Boots':53557,'Athletic Shoes':15709,'Casual Shoes':55793,'Dress Shoes':53557,'Sandals':53557,'Loafers':55793
+  } : cl.gender === 'boys' || cl.gender === 'girls' ? {
+    'Shoes':57929,'Sneakers':57929,'Boots':57929,'Athletic Shoes':57929,'Casual Shoes':57929,'Dress Shoes':57929,'Sandals':57929,'Loafers':57929
+  } : cl.gender === 'kids' || cl.gender === 'baby' || cl.gender === 'unisex_kids' ? {
+    'Shoes':57929,'Sneakers':57929,'Boots':57929,'Athletic Shoes':57929,'Casual Shoes':57929,'Dress Shoes':57929,'Sandals':57929,'Loafers':57929
+  } : {
+    'Shoes':55793,'Sneakers':15709,'Boots':53557,'Athletic Shoes':15709,'Casual Shoes':55793,'Dress Shoes':53557,'Sandals':53557,'Loafers':55793
+  };
+  return m[cl.category] || 55793;
+}
+
+function clGetShoeConditionId() {
+  return {NEW_WITH_BOX:1000, NEW_WITHOUT_BOX:1500, NEW_WITH_DEFECTS:1750, PREOWNED_EXCELLENT:2990, PREOWNED_GOOD:3000, PREOWNED_FAIR:3010}[cl.condition] || 1000;
+}
+
+// ── PRE-EXPORT VALIDATION FOR SHOES ────────────────────────────────────────
+
+function clValidateShoeExport(sess) {
+  var SHOE_CATEGORIES = ['Shoes','Sneakers','Boots','Athletic Shoes','Casual Shoes','Dress Shoes','Sandals','Loafers'];
+  var shoeItems = sess.filter(function(r) { return SHOE_CATEGORIES.includes(r.type); });
+  var clothingItems = sess.filter(function(r) { return !SHOE_CATEGORIES.includes(r.type); });
+
+  // Blocking: shoes with Type=Other
+  var typeOther = shoeItems.filter(function(r) { return !r.category || r.category === 'Other'; });
+  if (typeOther.length) {
+    var lista = typeOther.map(function(it){ return '• ' + (it.sku || it.title || '?'); }).join('\n');
+    alert('🚫 EXPORT BLOCKED — Invalid shoe type\n\n' + lista + '\n\nShoe type cannot be "Other" or empty.\nSelect a valid shoe type (Boots, Sneakers, etc.).');
+    return false;
+  }
+
+  // Blocking: shoes missing condition
+  var missingCond = shoeItems.filter(function(r) { return !r.conditionId; });
+  if (missingCond.length) {
+    var lista = missingCond.map(function(it){ return '• ' + (it.sku || it.title || '?'); }).join('\n');
+    alert('🚫 EXPORT BLOCKED — Missing shoe condition\n\n' + lista + '\n\nEach shoe must have a condition: NEW_WITH_BOX, NEW_WITHOUT_BOX, NEW_WITH_DEFECTS, PREOWNED_EXCELLENT, PREOWNED_GOOD, or PREOWNED_FAIR.');
+    return false;
+  }
+
+  // Blocking: shoes missing brand
+  var missingBrand = shoeItems.filter(function(r) { return !r.brand; });
+  if (missingBrand.length) {
+    var lista = missingBrand.map(function(it){ return '• ' + (it.sku || it.title || '?'); }).join('\n');
+    alert('🚫 EXPORT BLOCKED — Missing shoe brand\n\n' + lista + '\n\nEvery shoe must have a brand.');
+    return false;
+  }
+
+  // Blocking: invalid shoe size
+  var invalidSize = shoeItems.filter(function(r) { return !r.size || !/^\d+(\.\d+)?$/.test(String(r.size).trim()); });
+  if (invalidSize.length) {
+    var lista = invalidSize.map(function(it){ return '• ' + (it.sku || it.title || '?') + ' size: ' + it.size; }).join('\n');
+    alert('🚫 EXPORT BLOCKED — Invalid shoe size\n\n' + lista + '\n\nShoe size must be numeric (e.g., 10, 10.5, 11).');
+    return false;
+  }
+
+  return true;
+}
+
 function clExportEbayCSV() {
   var sess = JSON.parse(localStorage.getItem('cl_ebay_session') || '[]');
   if (!sess.length) { toast('⚠️ No items — complete a listing first'); return; }
@@ -5938,6 +6018,12 @@ function clExportEbayCSV() {
     }
   }
 
+  // ── SHOE EXPORT VALIDATION (Decision #6) ──────────────────────────────────
+  var hasShoes = clDetectShoeSession();
+  if (hasShoes) {
+    if (!clValidateShoeExport(sess)) return;
+  }
+
   // Enviar también a la hoja de registro de Google Sheets (en paralelo, no bloquea)
   clSendToRegistroSheet(sess);
 
@@ -5949,6 +6035,10 @@ function clExportEbayCSV() {
   var SHIP = CL_SHIP_POLICY;
   var RET  = CL_RET_POLICY;
   var PAY  = CL_PAY_POLICY;
+
+  // ── CONDITIONAL HEADER (Decision #6) ───────────────────────────────────
+  // Clothing-only (31 cols): preserve exact original header
+  // Shoes/mixed (34 cols): append C:US Shoe Size, C:Upper Material, C:Shoe Width
   var HDR=['*Action(SiteID=US|Country=US|Currency=USD|Version=1193|CC=UTF-8)',
     'CustomLabel','*Category','*Title','*ConditionID',
     '*C:Brand','*C:Size Type','*C:Size','*C:Department','*C:Color','*C:Style','C:Type',
@@ -5957,13 +6047,19 @@ function clExportEbayCSV() {
     '*StartPrice','*Quantity','ImmediatePayRequired','*Location','*DispatchTimeMax',
     'ShippingProfileName','ReturnProfileName','PaymentProfileName',
     'WeightMajor','WeightMinor'];
+  if (hasShoes) {
+    HDR.push('C:US Shoe Size','C:Upper Material','C:Shoe Width');
+  }
   var lines=['Info,Version=1.0.0,Template=fx_category_template_EBAY_US',HDR.join(',')];
+
+  var SHOE_CATEGORIES = ['Shoes','Sneakers','Boots','Athletic Shoes','Casual Shoes','Dress Shoes','Sandals','Loafers'];
   sess.forEach(function(r){
+    var isShoe = SHOE_CATEGORIES.includes(r.type);
     var needsInseam = ['Jeans','Pants','Shorts'].includes(r.type);
     var needsDressLen = ['Dress','Skirt'].includes(r.type);
     var needsOuter = ['Jacket','Coat','Vest'].includes(r.type);
     var needsActivity = ['Activewear Top','Activewear Bottom'].includes(r.type);
-    var needsWidth = (r.type === 'shoes');
+    var needsWidth = isShoe;
     // ⚠️ AGREGADO (15 ago 2026): eBay muestra los item specifics tal cual en
     // la ficha del producto. Mandar "Unspecified" es peor que no mandar nada:
     // ocupa el renglón, no aporta a la búsqueda y se ve mal (CLO-POL-1XB-47263
@@ -5973,7 +6069,8 @@ function clExportEbayCSV() {
       var s = String(v == null ? '' : v).trim();
       return /^(unspecified|unknown|n\/a|na|none|not specified|select|--)$/i.test(s) ? '' : s;
     }
-    lines.push([
+
+    var rowData = [
       'Add',r.sku||'',r.categoryId||'63861',r.title||'',r.conditionId||'1000',
       r.brand||'',r.sizeType||'Regular',r.size||'',r.department||'',asp(r.color),
       asp(r.style),asp(r.type),
@@ -5987,7 +6084,18 @@ function clExportEbayCSV() {
       'FixedPrice','GTC',r.price||'19.99','1','1','Lumberton, NC','1',SHIP,RET,PAY,
       (r.weightMajor === '' || r.weightMajor == null) ? '' : r.weightMajor,
       (r.weightMinor === '' || r.weightMinor == null) ? '' : r.weightMinor
-    ].map(q).join(','));
+    ];
+
+    // ── SHOE COLUMNS (Decision #6) ─────────────────────────────────────────
+    if (hasShoes) {
+      if (isShoe) {
+        rowData.push(r.size || '', r.outerMaterial || '', r.shoeWidth || 'Regular (B/M)');
+      } else {
+        rowData.push('', '', '');
+      }
+    }
+
+    lines.push(rowData.map(q).join(','));
   });
   var csv=lines.join('\r\n');
   var now=new Date();
