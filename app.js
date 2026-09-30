@@ -5893,8 +5893,22 @@ function clSendToRegistroSheet(sess) {
 
 function clDetectShoeSession() {
   var sess = JSON.parse(localStorage.getItem('cl_ebay_session') || '[]');
-  var SHOE_CATEGORIES = ['Shoes','Sneakers','Boots','Athletic Shoes','Casual Shoes','Dress Shoes','Sandals','Loafers'];
-  return sess.some(function(r) { return SHOE_CATEGORIES.includes(r.type); });
+  // Decision #5 frozen: 17 approved shoe type/group combinations
+  var APPROVED_ROUTING = {
+    'mens': ['Athletic Shoes','Boots','Casual Shoes','Dress Shoes','Sandals','Slippers'],
+    'womens': ['Athletic Shoes','Boots','Comfort Shoes','Flats','Heels','Sandals','Slippers'],
+    'boys': ['Shoes'],
+    'girls': ['Shoes'],
+    'kids': ['Shoes'],
+    'baby': ['Shoes']
+  };
+  var keys = Object.keys(APPROVED_ROUTING);
+  return sess.some(function(r) {
+    for (var i = 0; i < keys.length; i++) {
+      if (APPROVED_ROUTING[keys[i]].includes(r.type)) return true;
+    }
+    return false;
+  });
 }
 
 function clShoeDept() {
@@ -5908,60 +5922,191 @@ function clShoeDept() {
 }
 
 function clGetShoeEbayCategoryId() {
-  const m = cl.gender === 'mens' ? {
-    'Shoes':93427,'Sneakers':15709,'Boots':11498,'Athletic Shoes':15709,'Casual Shoes':93427,'Dress Shoes':53557,'Sandals':53557,'Loafers':93427
-  } : cl.gender === 'womens' ? {
-    'Shoes':55793,'Sneakers':15709,'Boots':53557,'Athletic Shoes':15709,'Casual Shoes':55793,'Dress Shoes':53557,'Sandals':53557,'Loafers':55793
-  } : cl.gender === 'boys' || cl.gender === 'girls' ? {
-    'Shoes':57929,'Sneakers':57929,'Boots':57929,'Athletic Shoes':57929,'Casual Shoes':57929,'Dress Shoes':57929,'Sandals':57929,'Loafers':57929
-  } : cl.gender === 'kids' || cl.gender === 'baby' || cl.gender === 'unisex_kids' ? {
-    'Shoes':57929,'Sneakers':57929,'Boots':57929,'Athletic Shoes':57929,'Casual Shoes':57929,'Dress Shoes':57929,'Sandals':57929,'Loafers':57929
-  } : {
-    'Shoes':55793,'Sneakers':15709,'Boots':53557,'Athletic Shoes':15709,'Casual Shoes':55793,'Dress Shoes':53557,'Sandals':53557,'Loafers':55793
+  // Decision #5: 17 approved eBay footwear category IDs — no fallback, no invention
+  var routing = {
+    'mens': {
+      'Athletic Shoes': 15709,
+      'Boots': 11498,
+      'Casual Shoes': 24087,
+      'Dress Shoes': 53120,
+      'Sandals': 11504,
+      'Slippers': 11505
+    },
+    'womens': {
+      'Athletic Shoes': 95672,
+      'Boots': 53557,
+      'Comfort Shoes': 53548,
+      'Flats': 45333,
+      'Heels': 55793,
+      'Sandals': 62107,
+      'Slippers': 11632
+    },
+    'boys': {
+      'Shoes': 57929
+    },
+    'girls': {
+      'Shoes': 57974
+    },
+    'kids': {
+      'Shoes': 155202
+    },
+    'baby': {
+      'Shoes': 147285
+    }
   };
-  return m[cl.category] || 55793;
+  var genderRouting = routing[cl.gender];
+  if (!genderRouting) return undefined;
+  return genderRouting[cl.category];
 }
 
 function clGetShoeConditionId() {
-  return {NEW_WITH_BOX:1000, NEW_WITHOUT_BOX:1500, NEW_WITH_DEFECTS:1750, PREOWNED_EXCELLENT:2990, PREOWNED_GOOD:3000, PREOWNED_FAIR:3010}[cl.condition] || 1000;
+  // Decision #4 frozen: no fallback — missing/invalid condition must block export
+  return {NEW_WITH_BOX:1000, NEW_WITHOUT_BOX:1500, NEW_WITH_DEFECTS:1750, PREOWNED_EXCELLENT:2990, PREOWNED_GOOD:3000, PREOWNED_FAIR:3010}[cl.condition];
 }
 
 // ── PRE-EXPORT VALIDATION FOR SHOES ────────────────────────────────────────
 
 function clValidateShoeExport(sess) {
-  var SHOE_CATEGORIES = ['Shoes','Sneakers','Boots','Athletic Shoes','Casual Shoes','Dress Shoes','Sandals','Loafers'];
-  var shoeItems = sess.filter(function(r) { return SHOE_CATEGORIES.includes(r.type); });
-  var clothingItems = sess.filter(function(r) { return !SHOE_CATEGORIES.includes(r.type); });
+  // Approved shoe routing (Decision #5 frozen: 17 eBay category IDs)
+  var APPROVED_ROUTING = {
+    'mens': ['Athletic Shoes','Boots','Casual Shoes','Dress Shoes','Sandals','Slippers'],
+    'womens': ['Athletic Shoes','Boots','Comfort Shoes','Flats','Heels','Sandals','Slippers'],
+    'boys': ['Shoes'],
+    'girls': ['Shoes'],
+    'kids': ['Shoes'],
+    'baby': ['Shoes']
+  };
 
-  // Blocking: shoes with Type=Other
-  var typeOther = shoeItems.filter(function(r) { return !r.category || r.category === 'Other'; });
-  if (typeOther.length) {
-    var lista = typeOther.map(function(it){ return '• ' + (it.sku || it.title || '?'); }).join('\n');
-    alert('🚫 EXPORT BLOCKED — Invalid shoe type\n\n' + lista + '\n\nShoe type cannot be "Other" or empty.\nSelect a valid shoe type (Boots, Sneakers, etc.).');
+  // Approved shoe conditions (Decision #4 frozen)
+  var APPROVED_CONDITIONS = {NEW_WITH_BOX:1000, NEW_WITHOUT_BOX:1500, NEW_WITH_DEFECTS:1750, PREOWNED_EXCELLENT:2990, PREOWNED_GOOD:3000, PREOWNED_FAIR:3010};
+
+  // Approved shoe departments (Decision #3 frozen)
+  var APPROVED_DEPARTMENTS = {
+    'mens': 'Men',
+    'womens': 'Women',
+    'boys': 'Boys',
+    'girls': 'Girls',
+    'kids': 'Unisex Kids',
+    'baby': 'Unisex Baby & Toddler'
+  };
+
+  // Identify shoe items by checking if type is in approved shoe category list
+  var isShoe = function(r) {
+    var keys = Object.keys(APPROVED_ROUTING);
+    for (var i = 0; i < keys.length; i++) {
+      if (APPROVED_ROUTING[keys[i]].includes(r.type)) return true;
+    }
+    return false;
+  };
+
+  var shoeItems = sess.filter(isShoe);
+
+  // ── VALIDATION RULE 1: Recognized shoe group
+  var badGroup = shoeItems.filter(function(r) {
+    var gender = Object.keys(APPROVED_ROUTING).find(function(g) { return APPROVED_ROUTING[g].includes(r.type); });
+    return !gender;
+  });
+  if (badGroup.length) {
+    var lista = badGroup.map(function(it){ return '• ' + (it.sku || it.title || '?') + ' (type: ' + it.type + ')'; }).join('\n');
+    alert('🚫 EXPORT BLOCKED — Unrecognized shoe group\n\n' + lista + '\n\nShoe type must belong to an approved group.');
     return false;
   }
 
-  // Blocking: shoes missing condition
-  var missingCond = shoeItems.filter(function(r) { return !r.conditionId; });
-  if (missingCond.length) {
-    var lista = missingCond.map(function(it){ return '• ' + (it.sku || it.title || '?'); }).join('\n');
-    alert('🚫 EXPORT BLOCKED — Missing shoe condition\n\n' + lista + '\n\nEach shoe must have a condition: NEW_WITH_BOX, NEW_WITHOUT_BOX, NEW_WITH_DEFECTS, PREOWNED_EXCELLENT, PREOWNED_GOOD, or PREOWNED_FAIR.');
+  // ── VALIDATION RULE 2: Approved Decision #5 type/group route
+  var badRoute = shoeItems.filter(function(r) {
+    var gender = Object.keys(APPROVED_ROUTING).find(function(g) { return APPROVED_ROUTING[g].includes(r.type); });
+    return !gender || !APPROVED_ROUTING[gender].includes(r.type);
+  });
+  if (badRoute.length) {
+    var lista = badRoute.map(function(it){ return '• ' + (it.sku || it.title || '?') + ' (type: ' + it.type + ')'; }).join('\n');
+    alert('🚫 EXPORT BLOCKED — Invalid shoe type/group routing\n\n' + lista + '\n\nThis shoe type is not approved for export.');
     return false;
   }
 
-  // Blocking: shoes missing brand
-  var missingBrand = shoeItems.filter(function(r) { return !r.brand; });
-  if (missingBrand.length) {
-    var lista = missingBrand.map(function(it){ return '• ' + (it.sku || it.title || '?'); }).join('\n');
+  // ── VALIDATION RULE 3: Valid shoe condition (frozen Decision #4)
+  var badCond = shoeItems.filter(function(r) { return !APPROVED_CONDITIONS.hasOwnProperty(r.condition) || !r.conditionId; });
+  if (badCond.length) {
+    var lista = badCond.map(function(it){ return '• ' + (it.sku || it.title || '?') + ' (condition: ' + it.condition + ')'; }).join('\n');
+    alert('🚫 EXPORT BLOCKED — Invalid or missing shoe condition\n\n' + lista + '\n\nApproved conditions: NEW_WITH_BOX, NEW_WITHOUT_BOX, NEW_WITH_DEFECTS, PREOWNED_EXCELLENT, PREOWNED_GOOD, PREOWNED_FAIR.');
+    return false;
+  }
+
+  // ── VALIDATION RULE 4: Brand present
+  var noBrand = shoeItems.filter(function(r) { return !r.brand || String(r.brand).trim() === ''; });
+  if (noBrand.length) {
+    var lista = noBrand.map(function(it){ return '• ' + (it.sku || it.title || '?'); }).join('\n');
     alert('🚫 EXPORT BLOCKED — Missing shoe brand\n\n' + lista + '\n\nEvery shoe must have a brand.');
     return false;
   }
 
-  // Blocking: invalid shoe size
-  var invalidSize = shoeItems.filter(function(r) { return !r.size || !/^\d+(\.\d+)?$/.test(String(r.size).trim()); });
-  if (invalidSize.length) {
-    var lista = invalidSize.map(function(it){ return '• ' + (it.sku || it.title || '?') + ' size: ' + it.size; }).join('\n');
-    alert('🚫 EXPORT BLOCKED — Invalid shoe size\n\n' + lista + '\n\nShoe size must be numeric (e.g., 10, 10.5, 11).');
+  // ── VALIDATION RULE 5: US Shoe Size present
+  var noSize = shoeItems.filter(function(r) { return !r.size || String(r.size).trim() === ''; });
+  if (noSize.length) {
+    var lista = noSize.map(function(it){ return '• ' + (it.sku || it.title || '?'); }).join('\n');
+    alert('🚫 EXPORT BLOCKED — Missing US Shoe Size\n\n' + lista + '\n\nEvery shoe must have a US size (e.g., 10, 10.5, 11).');
+    return false;
+  }
+
+  // ── VALIDATION RULE 6: US Shoe Size valid (numeric, reasonable range)
+  var badSize = shoeItems.filter(function(r) {
+    var s = String(r.size).trim();
+    var n = parseFloat(s);
+    return !/^\d+(\.\d)?$/.test(s) || !isFinite(n) || n < 1 || n > 20;
+  });
+  if (badSize.length) {
+    var lista = badSize.map(function(it){ return '• ' + (it.sku || it.title || '?') + ' (size: ' + it.size + ')'; }).join('\n');
+    alert('🚫 EXPORT BLOCKED — Invalid US Shoe Size\n\n' + lista + '\n\nSize must be numeric (1-20, e.g., 10 or 10.5).');
+    return false;
+  }
+
+  // ── VALIDATION RULE 7: Color present
+  var noColor = shoeItems.filter(function(r) { return !r.color || String(r.color).trim() === '' || /^(unknown|other|unspecified)$/i.test(String(r.color).trim()); });
+  if (noColor.length) {
+    var lista = noColor.map(function(it){ return '• ' + (it.sku || it.title || '?'); }).join('\n');
+    alert('🚫 EXPORT BLOCKED — Missing or invalid shoe color\n\n' + lista + '\n\nEvery shoe must have a specific color (not Unknown, Other, or blank).');
+    return false;
+  }
+
+  // ── VALIDATION RULE 8: Upper Material present
+  var noMaterial = shoeItems.filter(function(r) { return !r.outerMaterial || String(r.outerMaterial).trim() === ''; });
+  if (noMaterial.length) {
+    var lista = noMaterial.map(function(it){ return '• ' + (it.sku || it.title || '?'); }).join('\n');
+    alert('🚫 EXPORT BLOCKED — Missing Upper Material\n\n' + lista + '\n\nEvery shoe must specify upper material (leather, canvas, mesh, suede, etc.).');
+    return false;
+  }
+
+  // ── VALIDATION RULE 9: Shoe Width valid if supplied
+  var badWidth = shoeItems.filter(function(r) {
+    if (!r.shoeWidth || String(r.shoeWidth).trim() === '') return false;
+    var w = String(r.shoeWidth).trim();
+    return !/^(narrow|regular|wide|extra wide|b|d|2e|aaaa|aaa|aa|m|n|w|ww|2w)/i.test(w);
+  });
+  if (badWidth.length) {
+    var lista = badWidth.map(function(it){ return '• ' + (it.sku || it.title || '?') + ' (width: ' + it.shoeWidth + ')'; }).join('\n');
+    alert('🚫 EXPORT BLOCKED — Invalid Shoe Width\n\n' + lista + '\n\nShoe width must be standard (e.g., Regular, Wide, Extra Wide, Narrow).');
+    return false;
+  }
+
+  // ── VALIDATION RULE 10: Department matches Decision #3 routing
+  var badDept = shoeItems.filter(function(r) {
+    var gender = Object.keys(APPROVED_ROUTING).find(function(g) { return APPROVED_ROUTING[g].includes(r.type); });
+    var expectedDept = APPROVED_DEPARTMENTS[gender];
+    return r.department !== expectedDept;
+  });
+  if (badDept.length) {
+    var lista = badDept.map(function(it){ return '• ' + (it.sku || it.title || '?') + ' (dept: ' + it.department + ')'; }).join('\n');
+    alert('🚫 EXPORT BLOCKED — Invalid shoe department\n\n' + lista + '\n\nDepartment must match the shoe gender group.');
+    return false;
+  }
+
+  // ── VALIDATION RULE 11: Final Category ID is approved footwear (17 IDs)
+  var APPROVED_CATEGORY_IDS = [147285, 57929, 57974, 155202, 15709, 11498, 24087, 53120, 11504, 11505, 95672, 53557, 53548, 45333, 55793, 62107, 11632];
+  var badCatId = shoeItems.filter(function(r) {
+    return !r.categoryId || !APPROVED_CATEGORY_IDS.includes(parseInt(r.categoryId));
+  });
+  if (badCatId.length) {
+    var lista = badCatId.map(function(it){ return '• ' + (it.sku || it.title || '?') + ' (catId: ' + it.categoryId + ')'; }).join('\n');
+    alert('🚫 EXPORT BLOCKED — Invalid eBay category ID\n\n' + lista + '\n\nCategory must be one of the 17 approved footwear categories.');
     return false;
   }
 
@@ -6052,9 +6197,25 @@ function clExportEbayCSV() {
   }
   var lines=['Info,Version=1.0.0,Template=fx_category_template_EBAY_US',HDR.join(',')];
 
-  var SHOE_CATEGORIES = ['Shoes','Sneakers','Boots','Athletic Shoes','Casual Shoes','Dress Shoes','Sandals','Loafers'];
+  // Decision #5 frozen: 17 approved shoe type/group combinations
+  var APPROVED_ROUTING = {
+    'mens': ['Athletic Shoes','Boots','Casual Shoes','Dress Shoes','Sandals','Slippers'],
+    'womens': ['Athletic Shoes','Boots','Comfort Shoes','Flats','Heels','Sandals','Slippers'],
+    'boys': ['Shoes'],
+    'girls': ['Shoes'],
+    'kids': ['Shoes'],
+    'baby': ['Shoes']
+  };
+  var isShoeItem = function(r) {
+    var keys = Object.keys(APPROVED_ROUTING);
+    for (var i = 0; i < keys.length; i++) {
+      if (APPROVED_ROUTING[keys[i]].includes(r.type)) return true;
+    }
+    return false;
+  };
+
   sess.forEach(function(r){
-    var isShoe = SHOE_CATEGORIES.includes(r.type);
+    var isShoe = isShoeItem(r);
     var needsInseam = ['Jeans','Pants','Shorts'].includes(r.type);
     var needsDressLen = ['Dress','Skirt'].includes(r.type);
     var needsOuter = ['Jacket','Coat','Vest'].includes(r.type);
@@ -6071,14 +6232,14 @@ function clExportEbayCSV() {
     }
 
     var rowData = [
-      'Add',r.sku||'',r.categoryId||'63861',r.title||'',r.conditionId||'1000',
+      'Add',r.sku||'',r.categoryId,r.title||'',r.conditionId,
       r.brand||'',r.sizeType||'Regular',r.size||'',r.department||'',asp(r.color),
       asp(r.style),asp(r.type),
       asp(r.inseam) || (needsInseam ? (r.type === 'Shorts' ? '9"' : '30"') : ''),
       asp(r.dressLength) || (needsDressLen ? 'Knee Length' : ''),
       asp(r.outerMaterial) || (needsOuter ? 'Polyester' : ''),
       asp(r.activity) || (needsActivity ? 'General Fitness' : ''),
-      asp(r.shoeWidth) || (needsWidth ? 'Regular (B/M)' : ''),
+      asp(r.shoeWidth) || '',
       r.photos||'',
       r.description||('<p>'+(r.title||'')+'</p>'),
       'FixedPrice','GTC',r.price||'19.99','1','1','Lumberton, NC','1',SHIP,RET,PAY,
@@ -6089,7 +6250,7 @@ function clExportEbayCSV() {
     // ── SHOE COLUMNS (Decision #6) ─────────────────────────────────────────
     if (hasShoes) {
       if (isShoe) {
-        rowData.push(r.size || '', r.outerMaterial || '', r.shoeWidth || 'Regular (B/M)');
+        rowData.push(r.size || '', r.outerMaterial || '', r.shoeWidth || '');
       } else {
         rowData.push('', '', '');
       }
