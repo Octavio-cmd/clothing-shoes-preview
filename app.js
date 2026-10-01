@@ -5984,8 +5984,20 @@ function clExportEbayCSV() {
     }
   }
 
-  // ── SHOE EXPORT VALIDATION (Decision #6) ──────────────────────────────────
-  var hasShoes = sess.some(clShoeEbay.clIsShoeRow);
+  // ── DEFECT 3: CLASSIFICATION-FIRST SEQUENCE ──────────────────────────────
+  // Step 1: Classify ALL rows before determining hasShoes or header mode
+  var classifications = sess.map(clShoeEbay.clClassifySessionRow);
+
+  // Step 2: BLOCK export if any row is ambiguous (conservative policy)
+  if (classifications.includes('ambiguous')) {
+    toast('⚠️ Cannot export: row(s) with missing itemType. Recreate or add itemType to each row.');
+    return;
+  }
+
+  // Step 3: Determine hasShoes from classifications
+  var hasShoes = classifications.includes('shoes');
+
+  // Step 4: Run validation only if hasShoes
   if (hasShoes) {
     var validation = clShoeEbay.clValidateShoeExport(sess);
     if (!validation.ok) {
@@ -5997,74 +6009,19 @@ function clExportEbayCSV() {
   // Enviar también a la hoja de registro de Google Sheets (en paralelo, no bloquea)
   clSendToRegistroSheet(sess);
 
-  function q(v) {
-    v = String(v==null?'':v);
-    return (v.indexOf(',')>=0||v.indexOf('"')>=0||v.indexOf('\n')>=0)
-      ? '"'+v.replace(/"/g,'""')+'"' : v;
-  }
-  var SHIP = CL_SHIP_POLICY;
-  var RET  = CL_RET_POLICY;
-  var PAY  = CL_PAY_POLICY;
+  var config = {
+    shippingProfile: CL_SHIP_POLICY,
+    returnProfile: CL_RET_POLICY,
+    paymentProfile: CL_PAY_POLICY
+  };
 
-  // ── CONDITIONAL HEADER (Decision #6) ───────────────────────────────────
-  // Clothing-only (31 cols): preserve exact original header
-  // Shoes/mixed (34 cols): append C:US Shoe Size, C:Upper Material, C:Shoe Width
-  var HDR=['*Action(SiteID=US|Country=US|Currency=USD|Version=1193|CC=UTF-8)',
-    'CustomLabel','*Category','*Title','*ConditionID',
-    '*C:Brand','*C:Size Type','*C:Size','*C:Department','*C:Color','*C:Style','C:Type',
-    'C:Inseam','C:Dress Length','C:Outer Shell Material','C:Performance/Activity','C:Width',
-    'PicURL','*Description','*Format','*Duration',
-    '*StartPrice','*Quantity','ImmediatePayRequired','*Location','*DispatchTimeMax',
-    'ShippingProfileName','ReturnProfileName','PaymentProfileName',
-    'WeightMajor','WeightMinor'];
-  if (hasShoes) {
-    HDR.push('C:US Shoe Size','C:Upper Material','C:Shoe Width');
-  }
+  // ── STEP 5: Use shared header helper ───────────────────────────────────
+  var HDR = clShoeEbay.clBuildEbayHeader(hasShoes);
   var lines=['Info,Version=1.0.0,Template=fx_category_template_EBAY_US',HDR.join(',')];
 
+  // ── STEP 6: Use shared row builder helper ──────────────────────────────
   sess.forEach(function(r){
-    var isShoe = clShoeEbay.clIsShoeRow(r);
-    var needsInseam = ['Jeans','Pants','Shorts'].includes(r.type);
-    var needsDressLen = ['Dress','Skirt'].includes(r.type);
-    var needsOuter = ['Jacket','Coat','Vest'].includes(r.type);
-    var needsActivity = ['Activewear Top','Activewear Bottom'].includes(r.type);
-    var needsWidth = isShoe;
-    // ⚠️ AGREGADO (15 ago 2026): eBay muestra los item specifics tal cual en
-    // la ficha del producto. Mandar "Unspecified" es peor que no mandar nada:
-    // ocupa el renglón, no aporta a la búsqueda y se ve mal (CLO-POL-1XB-47263
-    // salió con C:Inseam = "Unspecified"). Si el valor es un relleno, se manda
-    // vacío y eBay simplemente omite el aspecto.
-    function asp(v){
-      var s = String(v == null ? '' : v).trim();
-      return /^(unspecified|unknown|n\/a|na|none|not specified|select|--)$/i.test(s) ? '' : s;
-    }
-
-    var rowData = [
-      'Add',r.sku||'',r.categoryId,r.title||'',r.conditionId,
-      r.brand||'',r.sizeType||'Regular',r.size||'',r.department||'',asp(r.color),
-      asp(r.style),asp(r.type),
-      asp(r.inseam) || (needsInseam ? (r.type === 'Shorts' ? '9"' : '30"') : ''),
-      asp(r.dressLength) || (needsDressLen ? 'Knee Length' : ''),
-      asp(r.outerMaterial) || (needsOuter ? 'Polyester' : ''),
-      asp(r.activity) || (needsActivity ? 'General Fitness' : ''),
-      asp(r.shoeWidth) || '',
-      r.photos||'',
-      r.description||('<p>'+(r.title||'')+'</p>'),
-      'FixedPrice','GTC',r.price||'19.99','1','1','Lumberton, NC','1',SHIP,RET,PAY,
-      (r.weightMajor === '' || r.weightMajor == null) ? '' : r.weightMajor,
-      (r.weightMinor === '' || r.weightMinor == null) ? '' : r.weightMinor
-    ];
-
-    // ── SHOE COLUMNS (Decision #6) ─────────────────────────────────────────
-    if (hasShoes) {
-      if (isShoe) {
-        rowData.push(r.size || '', r.outerMaterial || '', r.shoeWidth || '');
-      } else {
-        rowData.push('', '', '');
-      }
-    }
-
-    lines.push(rowData.map(q).join(','));
+    lines.push(clShoeEbay.clBuildEbayCsvRow(r, hasShoes, config));
   });
   var csv=lines.join('\r\n');
   var now=new Date();

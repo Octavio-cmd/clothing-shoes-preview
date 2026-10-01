@@ -266,6 +266,78 @@ function clValidateShoeExport(session) {
 // Public API (same for browser and Node.js)
 // ═══════════════════════════════════════════════════════════════════════════
 
+function clBuildEbayHeader(hasShoes) {
+  var HDR = [
+    '*Action(SiteID=US|Country=US|Currency=USD|Version=1193|CC=UTF-8)',
+    'CustomLabel','*Category','*Title','*ConditionID',
+    '*C:Brand','*C:Size Type','*C:Size','*C:Department','*C:Color','*C:Style','C:Type',
+    'C:Inseam','C:Dress Length','C:Outer Shell Material','C:Performance/Activity','C:Width',
+    'PicURL','*Description','*Format','*Duration',
+    '*StartPrice','*Quantity','ImmediatePayRequired','*Location','*DispatchTimeMax',
+    'ShippingProfileName','ReturnProfileName','PaymentProfileName',
+    'WeightMajor','WeightMinor'
+  ];
+  if (hasShoes) {
+    HDR.push('C:US Shoe Size','C:Upper Material','C:Shoe Width');
+  }
+  return HDR;
+}
+
+function clBuildEbayCsvRow(row, hasShoes, config) {
+  var q = function(v) {
+    v = String(v==null?'':v);
+    return (v.indexOf(',')>=0||v.indexOf('"')>=0||v.indexOf('\n')>=0)
+      ? '"'+v.replace(/"/g,'""')+'"' : v;
+  };
+
+  config = config || {};
+  var SHIP = config.shippingProfile || 'STANDARD';
+  var RET = config.returnProfile || 'STANDARD';
+  var PAY = config.paymentProfile || 'STANDARD';
+
+  var isShoe = clIsShoeRow(row);
+  var needsInseam = ['Jeans','Pants','Shorts'].includes(row.type);
+  var needsDressLen = ['Dress','Skirt'].includes(row.type);
+  var needsOuter = ['Jacket','Coat','Vest'].includes(row.type);
+  var needsActivity = ['Activewear Top','Activewear Bottom'].includes(row.type);
+
+  function asp(v){
+    var s = String(v == null ? '' : v).trim();
+    return /^(unspecified|unknown|n\/a|na|none|not specified|select|--)$/i.test(s) ? '' : s;
+  }
+
+  var rowData = [
+    'Add',row.sku||'',row.categoryId,row.title||'',row.conditionId,
+    row.brand||'',
+    isShoe ? '' : (row.sizeType||'Regular'),
+    isShoe ? '' : (row.size||''),
+    row.department||'',
+    asp(row.color),
+    asp(row.style),
+    asp(row.type),
+    isShoe ? '' : (asp(row.inseam) || (needsInseam ? (row.type === 'Shorts' ? '9"' : '30"') : '')),
+    isShoe ? '' : (asp(row.dressLength) || (needsDressLen ? 'Knee Length' : '')),
+    isShoe ? '' : (asp(row.outerMaterial) || (needsOuter ? 'Polyester' : '')),
+    asp(row.activity) || (needsActivity && !isShoe ? 'General Fitness' : ''),
+    isShoe ? '' : (asp(row.shoeWidth) || ''),
+    row.photos||'',
+    row.description||('<p>'+(row.title||'')+'</p>'),
+    'FixedPrice','GTC',row.price||'19.99','1','1','Lumberton, NC','1',SHIP,RET,PAY,
+    (row.weightMajor === '' || row.weightMajor == null) ? '' : row.weightMajor,
+    (row.weightMinor === '' || row.weightMinor == null) ? '' : row.weightMinor
+  ];
+
+  if (hasShoes) {
+    if (isShoe) {
+      rowData.push(row.size || '', row.outerMaterial || '', row.shoeWidth || '');
+    } else {
+      rowData.push('', '', '');
+    }
+  }
+
+  return rowData.map(q).join(',');
+}
+
 var clShoeEbay = {
   CL_SHOE_TAXONOMY: CL_SHOE_TAXONOMY,
   CL_SHOE_ROUTING: CL_SHOE_ROUTING,
@@ -277,7 +349,9 @@ var clShoeEbay = {
   clGetShoeConditionIdFor: clGetShoeConditionIdFor,
   clBuildEbayRowData: clBuildEbayRowData,
   clValidateShoeExport: clValidateShoeExport,
-  clClassifySessionRow: clClassifySessionRow
+  clClassifySessionRow: clClassifySessionRow,
+  clBuildEbayHeader: clBuildEbayHeader,
+  clBuildEbayCsvRow: clBuildEbayCsvRow
 };
 
 if (typeof window !== 'undefined') {
