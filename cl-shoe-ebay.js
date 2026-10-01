@@ -437,12 +437,25 @@ function clResolveShoeEbayAspects(row) {
   // Step 15: Validate PERFORMANCE/ACTIVITY
   var activityAspect = taxonomy.aspects['Performance/Activity'];
   var activity = '';
-  if (row.activity && activityAspect) {
-    if (activityAspect.values && activityAspect.values.length > 0) {
-      if (!activityAspect.values.includes(row.activity)) {
-        return { ok: false, code: 'INVALID_ACTIVITY', field: 'activity', value: row.activity, message: 'Invalid Performance/Activity for this category' };
+  if (row.activity) {
+    // Explicit activity: validate against taxonomy
+    if (activityAspect) {
+      if (activityAspect.values && activityAspect.values.length > 0) {
+        if (!activityAspect.values.includes(row.activity)) {
+          return { ok: false, code: 'INVALID_ACTIVITY', field: 'activity', value: row.activity, message: 'Invalid Performance/Activity for this category' };
+        }
       }
-      activity = row.activity;
+    }
+    activity = row.activity;
+  } else {
+    // No explicit activity: try to derive from sourceCategory
+    var derivedActivity = clGetDerivedShoeActivity(row.sourceCategory);
+    if (derivedActivity && activityAspect) {
+      if (activityAspect.values && activityAspect.values.length > 0) {
+        if (activityAspect.values.includes(derivedActivity)) {
+          activity = derivedActivity;
+        }
+      }
     }
   }
 
@@ -729,8 +742,7 @@ var clShoeEbay = {
   clGetShoeAllowedUpperMaterials: clGetShoeAllowedUpperMaterials,
   CL_SHOE_SOURCE_TO_ACTIVITY: CL_SHOE_SOURCE_TO_ACTIVITY,
   clGetDerivedShoeActivity: clGetDerivedShoeActivity,
-  clValidateShoeItemInfo: clValidateShoeItemInfo,
-  CL_SHOE_ROUTING: CL_SHOE_ROUTING
+  clValidateShoeItemInfo: clValidateShoeItemInfo
 };
 
 if (typeof window !== 'undefined') {

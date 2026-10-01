@@ -4286,8 +4286,14 @@ function clInitSizeWheel() {
 
   // Scroll to default WITHOUT animation
   if (ALL_SIZES.length > 0) {
-    list.scrollTop = currentIdx * ITEM_H;
-    if (display) display.textContent = ALL_SIZES[currentIdx];
+    if (currentIdx >= 0) {
+      list.scrollTop = currentIdx * ITEM_H;
+      if (display) display.textContent = ALL_SIZES[currentIdx];
+    } else {
+      // No size selected: show — and start at top
+      list.scrollTop = 0;
+      if (display) display.textContent = '—';
+    }
   } else {
     list.scrollTop = 0;
     if (display) display.textContent = '—';
@@ -4344,9 +4350,14 @@ function clRefreshShoeColorOptions() {
   if (cl.type !== 'shoes' || !cl.shoeGroup) return;
   var allowedColors = clShoeEbay.clGetShoeAllowedColors(cl.shoeGroup, cl.category);
   var colorDiv = document.querySelector('.cl-colors');
-  if (colorDiv && allowedColors.length > 0) {
-    colorDiv.innerHTML = allowedColors.map(c=>`<button class="cl-color-chip" onclick="clSetColor('${c}')" style="--swatch:#888" title="${c}"><span class="cname">${c}</span></button>`).join('');
+  if (colorDiv) {
+    if (allowedColors.length > 0) {
+      colorDiv.innerHTML = allowedColors.map(c=>`<button class="cl-color-chip" onclick="clSetColor('${c}')" style="--swatch:#888" title="${c}"><span class="cname">${c}</span></button>`).join('');
+    } else {
+      colorDiv.innerHTML = '';
+    }
     cl.color = '';
+    cl.colorCustom = '';
   }
 }
 
@@ -4354,15 +4365,22 @@ function clRefreshShoeWidthOptions() {
   if (cl.type !== 'shoes' || !cl.shoeGroup) return;
   var allowedWidths = clShoeEbay.clGetShoeAllowedWidths(cl.shoeGroup, cl.category);
   var widthDiv = document.getElementById('shoewidth-chips');
-  if (widthDiv && allowedWidths.length > 0) {
-    var tax = clShoeEbay.clGetShoeTaxonomyForSelection(cl.shoeGroup, cl.category);
-    var isRequired = tax && tax.aspects['Shoe Width'] && tax.aspects['Shoe Width'].required;
-    var html = '';
-    if (!isRequired) {
-      html += `<button class="cl-chip cl-shoewidth-chip" data-v="" onclick="clSetShoeWidth('')">Not Specified</button>`;
+  var widthSect = document.getElementById('shoewidth-sect');
+  if (widthDiv) {
+    if (allowedWidths.length > 0) {
+      var tax = clShoeEbay.clGetShoeTaxonomyForSelection(cl.shoeGroup, cl.category);
+      var isRequired = tax && tax.aspects['Shoe Width'] && tax.aspects['Shoe Width'].required;
+      var html = '';
+      if (!isRequired) {
+        html += `<button class="cl-chip cl-shoewidth-chip" data-v="" onclick="clSetShoeWidth('')">Not Specified</button>`;
+      }
+      html += allowedWidths.map(w=>`<button class="cl-chip cl-shoewidth-chip" data-v="${w}" onclick="clSetShoeWidth('${w}')">${w}</button>`).join('');
+      widthDiv.innerHTML = html;
+      if (widthSect) widthSect.style.display = 'block';
+    } else {
+      widthDiv.innerHTML = '';
+      if (widthSect) widthSect.style.display = 'none';
     }
-    html += allowedWidths.map(w=>`<button class="cl-chip cl-shoewidth-chip" data-v="${w}" onclick="clSetShoeWidth('${w}')">${w}</button>`).join('');
-    widthDiv.innerHTML = html;
     cl.shoeWidth = '';
   }
 }
@@ -4372,12 +4390,13 @@ function clRefreshShoeUpperMaterialOptions() {
   var allowedMaterials = clShoeEbay.clGetShoeAllowedUpperMaterials(cl.shoeGroup, cl.category);
   var materialDiv = document.getElementById('uppermaterial-chips');
   var materialSect = document.getElementById('uppermaterial-sect');
-  if (materialDiv && materialSect) {
+  if (materialDiv) {
     if (allowedMaterials.length > 0) {
       materialDiv.innerHTML = allowedMaterials.map(m=>`<button class="cl-chip" data-v="${m}" onclick="clSetOuterMaterial('${m}')" title="${m}">${m}</button>`).join('');
-      materialSect.style.display = 'block';
+      if (materialSect) materialSect.style.display = 'block';
     } else {
-      materialSect.style.display = 'none';
+      materialDiv.innerHTML = '';
+      if (materialSect) materialSect.style.display = 'none';
     }
     cl.outerMaterial = '';
   }
@@ -4601,8 +4620,10 @@ function clSetDressLength(b) {
 
 function clSetCond(c) {
   cl.condition = c;
+  var conditionList = cl.type === 'shoes' ? CL_SHOE_CONDITIONS : CL_CONDITIONS;
+  var selectedLabel = conditionList.find(x => x.id === c)?.label;
   document.querySelectorAll('.cl-cond-btn').forEach(el => {
-    el.classList.toggle('sel', el.querySelector('.cond-lbl').textContent === CL_CONDITIONS.find(x=>x.id===c)?.label);
+    el.classList.toggle('sel', el.querySelector('.cond-lbl').textContent === selectedLabel);
   });
 }
 
