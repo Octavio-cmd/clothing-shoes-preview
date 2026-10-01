@@ -4044,7 +4044,7 @@ function clRenderAttr() {
       <div class="lbl">OUTER SHELL MATERIAL</div>
       <div class="cl-chips" id="outermaterial-chips">
         ${['Cotton','Polyester','Nylon','Wool','Denim','Leather','Fleece','Down','Synthetic','Other'].map(v=>
-          '<button class="cl-chip cl-outermaterial-chip' + ((cl.outerMaterial||'')==v?' sel':'') + '" data-v="' + v + '" onclick="clSetOuterMaterial(\'' + v + '\')">' + v + '</button>'
+          `<button type="button" class="cl-chip cl-outermaterial-chip${(cl.outerMaterial||'')==v?' sel':''}" data-v="${v}" onclick="clSetOuterMaterial(this.dataset.v)">${v}</button>`
         ).join('')}
       </div>
     </div>
@@ -4124,7 +4124,7 @@ function clRenderAttr() {
           if(!cl.shoeGroup||!cl.category)return'';
           var allowed=clShoeEbay.clGetShoeAllowedUpperMaterials(cl.shoeGroup,cl.category);
           if(allowed.length===0)return'';
-          return allowed.map(m=>'<button class="cl-chip cl-outermaterial-chip'+(cl.outerMaterial===m?' sel':'')+'" data-v="'+m+'" onclick="clSetOuterMaterial(\''+m+'\')"'+('title="'+m+'"')+'>'+(m||'Not Specified')+'</button>').join('');
+          return allowed.map(m=>`<button type="button" class="cl-chip cl-outermaterial-chip${cl.outerMaterial===m?' sel':''}" data-v="${m}" onclick="clSetOuterMaterial(this.dataset.v)" title="${m}">${m}</button>`).join('');
         })()}
       </div>
     </div>
@@ -4460,7 +4460,7 @@ function clRefreshShoeUpperMaterialOptions() {
       cl.outerMaterial = '';
     }
     if (allowedMaterials.length > 0) {
-      materialDiv.innerHTML = allowedMaterials.map(m=>`<button class="cl-chip cl-outermaterial-chip${cl.outerMaterial===m?' sel':''}" data-v="${m}" onclick="clSetOuterMaterial('${m}')" title="${m}">${m}</button>`).join('');
+      materialDiv.innerHTML = allowedMaterials.map(m=>`<button type="button" class="cl-chip cl-outermaterial-chip${cl.outerMaterial===m?' sel':''}" data-v="${m}" onclick="clSetOuterMaterial(this.dataset.v)" title="${m}">${m}</button>`).join('');
       if (materialSect) materialSect.style.display = 'block';
     } else {
       materialDiv.innerHTML = '';
