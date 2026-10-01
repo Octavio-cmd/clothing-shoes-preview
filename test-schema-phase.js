@@ -699,7 +699,7 @@ test(100, 'CSV row detection: unsupported itemType=shoes remains Shoe and is BLO
     condition: 'NEW_WITH_BOX'
   };
   const validation = clShoeEbay.clValidateShoeExport([unsupportedShoe]);
-  return validation.ok === false && validation.error.includes('unsupported') ? true : (() => {throw new Error('Should block unsupported shoe')})();
+  return validation.ok === false && validation.error.includes('routing') ? true : (() => {throw new Error('Should block unsupported shoe')})();
 });
 
 test(101, 'CSV column validation: Clothing row with type="Boots" is NOT treated as Shoe', () => {
@@ -836,56 +836,56 @@ test(114, 'Header contract: First column is eBay action spec', () => {
 // ── Clothing Row Shape Tests (4 tests) ─────────────────────────────────────
 test(115, 'Clothing row: Returns CSV string with location, brand, title', () => {
   const row = {itemType: 'clothing', gender: 'mens', sourceCategory: 'Shirt', sku: 'TEST', title: 'T-Shirt', brand: 'Nike'};
-  const csvRow = clShoeEbay.clBuildEbayCsvRow(row, false, {});
+  const result = clShoeEbay.clBuildEbayCsvRow(row, false, {});
   // CSV should have Add, TEST, T-Shirt, Nike, location, price, etc.
-  return csvRow.indexOf('Add') === 0 && csvRow.indexOf('TEST') >= 0 && csvRow.indexOf('Nike') >= 0;
+  return result.ok === true && result.csv.indexOf('Add') === 0 && result.csv.indexOf('TEST') >= 0 && result.csv.indexOf('Nike') >= 0;
 });
 
 test(116, 'Clothing row: No shoe columns appended when hasShoes=false', () => {
   const row = {itemType: 'clothing', gender: 'mens', sourceCategory: 'Shirt', sku: 'TEST', title: 'T-Shirt'};
-  const csvRow = clShoeEbay.clBuildEbayCsvRow(row, false, {});
+  const result = clShoeEbay.clBuildEbayCsvRow(row, false, {});
   // Should NOT have shoe-specific patterns like col 32 size values
-  return csvRow !== '' && typeof csvRow === 'string';
+  return result.ok === true && result.csv !== '' && typeof result.csv === 'string';
 });
 
 test(117, 'Clothing row: Columns 7,8 (sizeType/size) populated when itemType=clothing', () => {
   const row = {itemType: 'clothing', gender: 'mens', sourceCategory: 'Shirt', sku: 'SKU', sizeType: 'Regular', size: 'M', title: 'Shirt'};
-  const csv = clShoeEbay.clBuildEbayCsvRow(row, false, {});
-  return csv.indexOf('Regular') >= 0 && csv.indexOf('M') >= 0;
+  const result = clShoeEbay.clBuildEbayCsvRow(row, false, {});
+  return result.ok === true && result.csv.indexOf('Regular') >= 0 && result.csv.indexOf('M') >= 0;
 });
 
 test(118, 'Clothing row: shoeWidth column (col 17) populated when itemType=clothing', () => {
   const row = {itemType: 'clothing', gender: 'mens', sourceCategory: 'Shirt', sku: 'SKU', shoeWidth: 'Standard', title: 'Shirt'};
-  const csv = clShoeEbay.clBuildEbayCsvRow(row, false, {});
-  return csv.indexOf('Standard') >= 0;
+  const result = clShoeEbay.clBuildEbayCsvRow(row, false, {});
+  return result.ok === true && result.csv.indexOf('Standard') >= 0;
 });
 
 // ── Shoe Row Shape Tests (4 tests) ────────────────────────────────────────
 test(119, 'Shoe row: CSV includes shoe-specific data when hasShoes=true', () => {
-  const row = {itemType: 'shoes', gender: 'mens', shoeGroup: 'Sneakers', sku: 'SHOE', title: 'Sneaker', size: '10', outerMaterial: 'Leather'};
-  const csvRow = clShoeEbay.clBuildEbayCsvRow(row, true, {});
+  const row = {itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers', categoryId: 15709, condition: 'NEW_WITH_BOX', conditionId: 1000, brand: 'Nike', size: '10', color: 'Black', sku: 'SHOE', title: 'Sneaker', outerMaterial: 'Leather'};
+  const result = clShoeEbay.clBuildEbayCsvRow(row, true, {});
   // Should include shoe data: size 10 and leather material
-  return csvRow.indexOf('10') >= 0 && csvRow.indexOf('Leather') >= 0;
+  return result.ok === true && result.csv.indexOf('10') >= 0 && result.csv.indexOf('Leather') >= 0;
 });
 
 test(120, 'Shoe row: Columns 7,8 (sizeType/size) BLANK when itemType=shoes', () => {
-  const row = {itemType: 'shoes', gender: 'mens', shoeGroup: 'Sneakers', sku: 'SHOE', sizeType: 'Should Blank', size: '10', title: 'Sneaker'};
-  const csv = clShoeEbay.clBuildEbayCsvRow(row, true, {});
+  const row = {itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers', categoryId: 15709, condition: 'NEW_WITH_BOX', conditionId: 1000, brand: 'Nike', size: '10', color: 'Black', sku: 'SHOE', sizeType: 'Should Blank', title: 'Sneaker'};
+  const result = clShoeEbay.clBuildEbayCsvRow(row, true, {});
   // The CSV construction blanks columns 7,8 for shoes (before the description field)
   // Verify that sizeType/size from clothing mode don't appear in shoe row
-  return csv.indexOf('Should Blank') < 0;
+  return result.ok === true && result.csv.indexOf('Should Blank') < 0;
 });
 
 test(121, 'Shoe row: size value from row.size appears in shoe columns', () => {
-  const row = {itemType: 'shoes', gender: 'mens', shoeGroup: 'Sneakers', sku: 'SHOE', title: 'Sneaker', size: '10.5', outerMaterial: 'Canvas', shoeWidth: 'W'};
-  const csv = clShoeEbay.clBuildEbayCsvRow(row, true, {});
-  return csv.indexOf('10.5') >= 0;
+  const row = {itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers', categoryId: 15709, condition: 'NEW_WITH_BOX', conditionId: 1000, brand: 'Nike', size: '10.5', color: 'Black', sku: 'SHOE', title: 'Sneaker', outerMaterial: 'Canvas', shoeWidth: 'W'};
+  const result = clShoeEbay.clBuildEbayCsvRow(row, true, {});
+  return result.ok === true && result.csv.indexOf('10.5') >= 0;
 });
 
 test(122, 'Shoe row: outerMaterial and shoeWidth values appear in output', () => {
-  const row = {itemType: 'shoes', gender: 'mens', shoeGroup: 'Sneakers', sku: 'SHOE', title: 'Sneaker', size: '10', outerMaterial: 'Leather', shoeWidth: 'EE'};
-  const csv = clShoeEbay.clBuildEbayCsvRow(row, true, {});
-  return csv.indexOf('Leather') >= 0 && csv.indexOf('EE') >= 0;
+  const row = {itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers', categoryId: 15709, condition: 'NEW_WITH_BOX', conditionId: 1000, brand: 'Nike', size: '10', color: 'Black', sku: 'SHOE', title: 'Sneaker', outerMaterial: 'Leather', shoeWidth: 'EE'};
+  const result = clShoeEbay.clBuildEbayCsvRow(row, true, {});
+  return result.ok === true && result.csv.indexOf('Leather') >= 0 && result.csv.indexOf('EE') >= 0;
 });
 
 // ── Detection Routing Tests (4 tests) ──────────────────────────────────────
@@ -977,30 +977,30 @@ test(136, 'Production: No duplicate APPROVED_ROUTING table in app.js', () => {
 // ── CSV Row Helper Tests (4 tests) ────────────────────────────────────────
 test(137, 'CSV builder: Escapes commas in fields', () => {
   const row = {itemType: 'clothing', sku: 'SKU', title: 'Item, with comma', brand: 'Brand'};
-  const csv = clShoeEbay.clBuildEbayCsvRow(row, false, {});
-  return csv.indexOf('"Item, with comma"') >= 0;
+  const result = clShoeEbay.clBuildEbayCsvRow(row, false, {});
+  return result.ok === true && result.csv.indexOf('"Item, with comma"') >= 0;
 });
 
 test(138, 'CSV builder: Escapes quotes in fields', () => {
   const row = {itemType: 'clothing', sku: 'SKU', title: 'Item "Premium"', brand: 'Brand'};
-  const csv = clShoeEbay.clBuildEbayCsvRow(row, false, {});
-  return csv.indexOf('"Item ""Premium"""') >= 0;
+  const result = clShoeEbay.clBuildEbayCsvRow(row, false, {});
+  return result.ok === true && result.csv.indexOf('"Item ""Premium"""') >= 0;
 });
 
 test(139, 'CSV builder: Handles newlines in description', () => {
   const row = {itemType: 'clothing', sku: 'SKU', title: 'Item', description: 'Line1\nLine2', brand: 'Brand'};
-  const csv = clShoeEbay.clBuildEbayCsvRow(row, false, {});
-  return csv.indexOf('"Line1\nLine2"') >= 0;
+  const result = clShoeEbay.clBuildEbayCsvRow(row, false, {});
+  return result.ok === true && result.csv.indexOf('"Line1\nLine2"') >= 0;
 });
 
 test(140, 'CSV builder: Uses default profile names from config', () => {
   const row = {itemType: 'clothing', sku: 'SKU', title: 'Item', brand: 'Brand'};
-  const csv = clShoeEbay.clBuildEbayCsvRow(row, false, {
+  const result = clShoeEbay.clBuildEbayCsvRow(row, false, {
     shippingProfile: 'CUSTOM_SHIP',
     returnProfile: 'CUSTOM_RET',
     paymentProfile: 'CUSTOM_PAY'
   });
-  return csv.indexOf('CUSTOM_SHIP') >= 0 && csv.indexOf('CUSTOM_RET') >= 0 && csv.indexOf('CUSTOM_PAY') >= 0;
+  return result.ok === true && result.csv.indexOf('CUSTOM_SHIP') >= 0 && result.csv.indexOf('CUSTOM_RET') >= 0 && result.csv.indexOf('CUSTOM_PAY') >= 0;
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1147,8 +1147,304 @@ test(156, 'Phase 2: Upper material optional for Athletic Shoes passes without', 
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// SUMMARY
+// PHASE 2.5: PRODUCTION PATH INTEGRATION (30+ tests)
 // ═══════════════════════════════════════════════════════════════════════════
+
+// ── Validator Integration Tests (10 tests) ────────────────────────────────
+test(157, 'Validator: Valid shoe row passes clValidateShoeExport', () => {
+  const session = [{
+    itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers',
+    categoryId: 15709, condition: 'NEW_WITH_BOX', conditionId: 1000,
+    brand: 'Nike', size: '10', color: 'Black', sku: 'SH001'
+  }];
+  const result = clShoeEbay.clValidateShoeExport(session);
+  return assertEqual(result.ok, true, 'passes');
+});
+
+test(158, 'Validator: Invalid shoe size blocks export', () => {
+  const session = [{
+    itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers',
+    categoryId: 15709, condition: 'NEW_WITH_BOX', conditionId: 1000,
+    brand: 'Nike', size: 'INVALID_SIZE', color: 'Black', sku: 'SH002'
+  }];
+  const result = clShoeEbay.clValidateShoeExport(session);
+  return assertEqual(result.ok, false, 'blocks') && assertEqual(result.code, 'INVALID_SIZE', 'size error');
+});
+
+test(159, 'Validator: Invalid color blocks export', () => {
+  const session = [{
+    itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers',
+    categoryId: 15709, condition: 'NEW_WITH_BOX', conditionId: 1000,
+    brand: 'Nike', size: '10', color: 'InvalidColor', sku: 'SH003'
+  }];
+  const result = clShoeEbay.clValidateShoeExport(session);
+  return assertEqual(result.ok, false, 'blocks') && assertEqual(result.code, 'INVALID_COLOR', 'color error');
+});
+
+test(160, 'Validator: Missing required material blocks export', () => {
+  const session = [{
+    itemType: 'shoes', shoeGroup: 'womens', sourceCategory: 'Boots',
+    categoryId: 53557, condition: 'NEW_WITH_BOX', conditionId: 1000,
+    brand: 'Timberland', size: '7', color: 'Black', outerMaterial: '', sku: 'SH004'
+  }];
+  const result = clShoeEbay.clValidateShoeExport(session);
+  return assertEqual(result.ok, false, 'blocks') && assertEqual(result.code, 'MISSING_UPPER_MATERIAL', 'material error');
+});
+
+test(161, 'Validator: Category mismatch blocks export', () => {
+  const session = [{
+    itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers',
+    categoryId: 99999, condition: 'NEW_WITH_BOX', conditionId: 1000,
+    brand: 'Nike', size: '10', color: 'Black', sku: 'SH005'
+  }];
+  const result = clShoeEbay.clValidateShoeExport(session);
+  return assertEqual(result.ok, false, 'blocks') && assertEqual(result.code, 'CATEGORY_MISMATCH', 'category error');
+});
+
+test(162, 'Validator: Clothing row skipped (returns ok)', () => {
+  const session = [
+    {itemType: 'clothing', gender: 'mens', type: 'Shirt', sku: 'CL001'},
+    {itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers',
+     categoryId: 15709, condition: 'NEW_WITH_BOX', conditionId: 1000,
+     brand: 'Nike', size: '10', color: 'Black', sku: 'SH006'}
+  ];
+  const result = clShoeEbay.clValidateShoeExport(session);
+  return assertEqual(result.ok, true, 'mixed session passes');
+});
+
+test(163, 'Validator: Other brand + valid custom brand passes', () => {
+  const session = [{
+    itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers',
+    categoryId: 15709, condition: 'NEW_WITH_BOX', conditionId: 1000,
+    brand: 'Other', brandCustom: 'Hoka', size: '10', color: 'Black', sku: 'SH007'
+  }];
+  const result = clShoeEbay.clValidateShoeExport(session);
+  return assertEqual(result.ok, true, 'passes');
+});
+
+test(164, 'Validator: Other brand + missing custom brand blocks', () => {
+  const session = [{
+    itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers',
+    categoryId: 15709, condition: 'NEW_WITH_BOX', conditionId: 1000,
+    brand: 'Other', brandCustom: '', size: '10', color: 'Black', sku: 'SH008'
+  }];
+  const result = clShoeEbay.clValidateShoeExport(session);
+  return assertEqual(result.ok, false, 'blocks') && assertEqual(result.code, 'MISSING_BRAND', 'brand error');
+});
+
+test(165, 'Validator: Error includes row index, SKU, and error details', () => {
+  const session = [{
+    itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers',
+    categoryId: 15709, condition: 'NEW_WITH_BOX', conditionId: 1000,
+    brand: 'Nike', size: 'INVALID', color: 'Black', sku: 'TEST_SKU_001'
+  }];
+  const result = clShoeEbay.clValidateShoeExport(session);
+  return assertEqual(result.ok, false, 'fails') && result.rowIndex === 1 && result.sku === 'TEST_SKU_001' && result.code === 'INVALID_SIZE';
+});
+
+test(166, 'Validator: Multiple rows - first invalid blocks', () => {
+  const session = [
+    {itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers',
+     categoryId: 15709, condition: 'NEW_WITH_BOX', conditionId: 1000,
+     brand: 'Nike', size: 'INVALID', color: 'Black', sku: 'SH009'},
+    {itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers',
+     categoryId: 15709, condition: 'NEW_WITH_BOX', conditionId: 1000,
+     brand: 'Nike', size: '10', color: 'Black', sku: 'SH010'}
+  ];
+  const result = clShoeEbay.clValidateShoeExport(session);
+  return assertEqual(result.ok, false, 'blocks') && result.rowIndex === 1;
+});
+
+// ── CSV Integration Tests (15 tests) ──────────────────────────────────────
+test(167, 'CSV: Shoe row uses resolved categoryId', () => {
+  const row = {
+    itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers',
+    categoryId: 15709, condition: 'NEW_WITH_BOX', conditionId: 1000,
+    brand: 'Nike', size: '10', color: 'Black', sku: 'SH011', title: 'Test'
+  };
+  const result = clShoeEbay.clBuildEbayCsvRow(row, true, {});
+  return result.ok === true && result.csv.includes('15709');
+});
+
+test(168, 'CSV: Shoe row uses resolved conditionId', () => {
+  const row = {
+    itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers',
+    categoryId: 15709, condition: 'NEW_WITH_BOX', conditionId: 1000,
+    brand: 'Nike', size: '10', color: 'Black', sku: 'SH012', title: 'Test'
+  };
+  const result = clShoeEbay.clBuildEbayCsvRow(row, true, {});
+  return result.ok === true && result.csv.includes('1000');
+});
+
+test(169, 'CSV: Shoe row uses resolved brand', () => {
+  const row = {
+    itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers',
+    categoryId: 15709, condition: 'NEW_WITH_BOX', conditionId: 1000,
+    brand: 'Nike', size: '10', color: 'Black', sku: 'SH013', title: 'Test'
+  };
+  const result = clShoeEbay.clBuildEbayCsvRow(row, true, {});
+  const fields = result.csv.split(',');
+  return result.ok === true && fields[5] === 'Nike';
+});
+
+test(170, 'CSV: Shoe row uses resolved color', () => {
+  const row = {
+    itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers',
+    categoryId: 15709, condition: 'NEW_WITH_BOX', conditionId: 1000,
+    brand: 'Nike', size: '10', color: 'Black', sku: 'SH014', title: 'Test'
+  };
+  const result = clShoeEbay.clBuildEbayCsvRow(row, true, {});
+  const fields = result.csv.split(',');
+  return result.ok === true && fields[9] === 'Black';
+});
+
+test(171, 'CSV: Shoe row uses resolved style (derived)', () => {
+  const row = {
+    itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers',
+    categoryId: 15709, condition: 'NEW_WITH_BOX', conditionId: 1000,
+    brand: 'Nike', size: '10', color: 'Black', sku: 'SH015', title: 'Test'
+  };
+  const result = clShoeEbay.clBuildEbayCsvRow(row, true, {});
+  const fields = result.csv.split(',');
+  return result.ok === true && fields[10] === 'Sneaker';
+});
+
+test(172, 'CSV: Shoe row uses resolved Type (eBayType derived)', () => {
+  const row = {
+    itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers',
+    categoryId: 15709, condition: 'NEW_WITH_BOX', conditionId: 1000,
+    brand: 'Nike', size: '10', color: 'Black', sku: 'SH016', title: 'Test'
+  };
+  const result = clShoeEbay.clBuildEbayCsvRow(row, true, {});
+  const fields = result.csv.split(',');
+  return result.ok === true && fields[11] === 'Athletic';
+});
+
+test(173, 'CSV: Shoe row uses resolved department', () => {
+  const row = {
+    itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers',
+    categoryId: 15709, condition: 'NEW_WITH_BOX', conditionId: 1000,
+    brand: 'Nike', size: '10', color: 'Black', sku: 'SH017', title: 'Test'
+  };
+  const result = clShoeEbay.clBuildEbayCsvRow(row, true, {});
+  const fields = result.csv.split(',');
+  return result.ok === true && fields[8] === 'Men';
+});
+
+test(174, 'CSV: Shoe size goes to column 32 (US Shoe Size)', () => {
+  const row = {
+    itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers',
+    categoryId: 15709, condition: 'NEW_WITH_BOX', conditionId: 1000,
+    brand: 'Nike', size: '10', color: 'Black', sku: 'SH018', title: 'Test'
+  };
+  const result = clShoeEbay.clBuildEbayCsvRow(row, true, {});
+  // Parse CSV properly (accounting for quoted fields)
+  const csv = result.csv;
+  const fields = [];
+  let current = '', inQuotes = false;
+  for (let i = 0; i < csv.length; i++) {
+    const char = csv[i];
+    if (char === '"') { inQuotes = !inQuotes; current += char; }
+    else if (char === ',' && !inQuotes) { fields.push(current); current = ''; }
+    else { current += char; }
+  }
+  if (current) fields.push(current);
+  return result.ok === true && fields[31] === '10';
+});
+
+test(175, 'CSV: Shoe upper material goes to column 33', () => {
+  const row = {
+    itemType: 'shoes', shoeGroup: 'womens', sourceCategory: 'Flats',
+    categoryId: 45333, condition: 'NEW_WITH_BOX', conditionId: 1000,
+    brand: 'Nike', size: '7', color: 'Black', outerMaterial: 'Leather', sku: 'SH019', title: 'Test'
+  };
+  const result = clShoeEbay.clBuildEbayCsvRow(row, true, {});
+  // Parse CSV properly (accounting for quoted fields)
+  const csv = result.csv;
+  const fields = [];
+  let current = '', inQuotes = false;
+  for (let i = 0; i < csv.length; i++) {
+    const char = csv[i];
+    if (char === '"') { inQuotes = !inQuotes; current += char; }
+    else if (char === ',' && !inQuotes) { fields.push(current); current = ''; }
+    else { current += char; }
+  }
+  if (current) fields.push(current);
+  return result.ok === true && fields[32] === 'Leather';
+});
+
+test(176, 'CSV: Shoe width goes to column 34', () => {
+  const row = {
+    itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers',
+    categoryId: 15709, condition: 'NEW_WITH_BOX', conditionId: 1000,
+    brand: 'Nike', size: '10', color: 'Black', shoeWidth: 'D', sku: 'SH020', title: 'Test'
+  };
+  const result = clShoeEbay.clBuildEbayCsvRow(row, true, {});
+  // Parse CSV properly (accounting for quoted fields)
+  const csv = result.csv;
+  const fields = [];
+  let current = '', inQuotes = false;
+  for (let i = 0; i < csv.length; i++) {
+    const char = csv[i];
+    if (char === '"') { inQuotes = !inQuotes; current += char; }
+    else if (char === ',' && !inQuotes) { fields.push(current); current = ''; }
+    else { current += char; }
+  }
+  if (current) fields.push(current);
+  return result.ok === true && fields[33] === 'D';
+});
+
+test(177, 'CSV: Invalid shoe blocks CSV generation with error', () => {
+  const row = {
+    itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers',
+    categoryId: 15709, condition: 'NEW_WITH_BOX', conditionId: 1000,
+    brand: 'Nike', size: 'INVALID_SIZE', color: 'Black', sku: 'SH021'
+  };
+  const result = clShoeEbay.clBuildEbayCsvRow(row, true, {});
+  return result.ok === false && result.error.code === 'INVALID_SIZE';
+});
+
+test(178, 'CSV: Other brand with custom value uses resolved brand', () => {
+  const row = {
+    itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers',
+    categoryId: 15709, condition: 'NEW_WITH_BOX', conditionId: 1000,
+    brand: 'Other', brandCustom: 'Hoka', size: '10', color: 'Black', sku: 'SH022', title: 'Test'
+  };
+  const result = clShoeEbay.clBuildEbayCsvRow(row, true, {});
+  const fields = result.csv.split(',');
+  return result.ok === true && fields[5] === 'Hoka';
+});
+
+test(179, 'CSV: Other color with valid custom value uses resolved color', () => {
+  const row = {
+    itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers',
+    categoryId: 15709, condition: 'NEW_WITH_BOX', conditionId: 1000,
+    brand: 'Nike', size: '10', color: 'Other', colorCustom: 'Red', sku: 'SH023', title: 'Test'
+  };
+  const result = clShoeEbay.clBuildEbayCsvRow(row, true, {});
+  const fields = result.csv.split(',');
+  return result.ok === true && fields[9] === 'Red';
+});
+
+test(180, 'CSV: Other color with invalid custom value blocks', () => {
+  const row = {
+    itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers',
+    categoryId: 15709, condition: 'NEW_WITH_BOX', conditionId: 1000,
+    brand: 'Nike', size: '10', color: 'Other', colorCustom: 'Burgundy', sku: 'SH024'
+  };
+  const result = clShoeEbay.clBuildEbayCsvRow(row, true, {});
+  return result.ok === false && result.error.code === 'INVALID_COLOR';
+});
+
+test(181, 'CSV: Clothing row CSV generation unchanged', () => {
+  const row = {
+    itemType: 'clothing', gender: 'mens', type: 'Shirt', size: 'M',
+    brand: 'Nike', color: 'Black', sizeType: 'Regular', sku: 'CL002', title: 'Shirt',
+    price: '29.99'
+  };
+  const result = clShoeEbay.clBuildEbayCsvRow(row, false, {});
+  return result.ok === true && typeof result.csv === 'string';
+});
 
 console.log('\n' + '═'.repeat(70));
 console.log('SCHEMA PHASE COMPREHENSIVE TEST RESULTS');
