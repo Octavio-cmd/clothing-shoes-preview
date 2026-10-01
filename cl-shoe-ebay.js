@@ -88,13 +88,40 @@ const CL_SHOE_TAXONOMY = {
 };
 
 // ── Shoe Group → eBay Category routing ─
+// Keys are actual CL_SHOE_CATS internal category strings
+// Verified from Decision #5 research: Internal category -> eBay core category ID
 const CL_SHOE_ROUTING = {
-  'mens': {'Athletic Shoes': 15709, 'Boots': 11498, 'Casual Shoes': 24087, 'Dress Shoes': 53120, 'Sandals': 11504, 'Slippers': 11505},
-  'womens': {'Athletic Shoes': 95672, 'Boots': 53557, 'Comfort Shoes': 53548, 'Flats': 45333, 'Heels': 55793, 'Sandals': 62107, 'Slippers': 11632},
-  'boys': {'Shoes': 57929},
-  'girls': {'Shoes': 57974},
-  'unisex_kids': {'Shoes': 155202},
-  'baby': {'Shoes': 147285}
+  'mens': {
+    'Sneakers': 15709, 'Running': 15709, 'Athletic': 15709, 'Basketball': 15709,
+    'Casual': 24087, 'Dress Shoes': 53120, 'Boots': 11498, 'Ankle Boots': 11498,
+    'Sandals': 11504, 'Heels': 53120, 'Flats': 24087, 'Loafers': 53120, 'Slip-On': 24087,
+    'Clogs': 24087, 'Mules': 24087, 'Wedges': 24087, 'Platform': 24087, 'Kids Sneakers': 15709, 'Kids Boots': 11498
+  },
+  'womens': {
+    'Sneakers': 95672, 'Running': 95672, 'Athletic': 95672, 'Basketball': 95672,
+    'Casual': 45333, 'Dress Shoes': 55793, 'Boots': 53557, 'Ankle Boots': 53557,
+    'Sandals': 62107, 'Heels': 55793, 'Flats': 45333, 'Loafers': 45333, 'Slip-On': 45333,
+    'Clogs': 53548, 'Mules': 45333, 'Wedges': 55793, 'Platform': 55793, 'Kids Sneakers': 95672, 'Kids Boots': 57974
+  },
+  'boys': {
+    'Sneakers': 57929, 'Running': 57929, 'Athletic': 57929, 'Basketball': 57929,
+    'Casual': 57929, 'Dress Shoes': 57929, 'Boots': 57929, 'Ankle Boots': 57929,
+    'Sandals': 57929, 'Heels': 57929, 'Flats': 57929, 'Loafers': 57929, 'Slip-On': 57929,
+    'Clogs': 57929, 'Mules': 57929, 'Wedges': 57929, 'Platform': 57929, 'Kids Sneakers': 57929, 'Kids Boots': 57929
+  },
+  'girls': {
+    'Sneakers': 57974, 'Running': 57974, 'Athletic': 57974, 'Basketball': 57974,
+    'Casual': 57974, 'Dress Shoes': 57974, 'Boots': 57974, 'Ankle Boots': 57974,
+    'Sandals': 57974, 'Heels': 57974, 'Flats': 57974, 'Loafers': 57974, 'Slip-On': 57974,
+    'Clogs': 57974, 'Mules': 57974, 'Wedges': 57974, 'Platform': 57974, 'Kids Sneakers': 57974, 'Kids Boots': 57974
+  },
+  'unisex': {
+    'Sneakers': 15709, 'Running': 15709, 'Athletic': 15709, 'Basketball': 15709,
+    'Casual': 53548, 'Dress Shoes': 53120, 'Boots': 11498, 'Ankle Boots': 53557,
+    'Sandals': 11504, 'Heels': 55793, 'Flats': 45333, 'Loafers': 24087, 'Slip-On': 24087,
+    'Clogs': 53548, 'Mules': 53548, 'Wedges': 55793, 'Platform': 95672, 'Kids Sneakers': 15709, 'Kids Boots': 155202
+  }
+  // unisex_kids and baby deliberately unsupported until explicit approved evidence found
 };
 
 // ── Shoe Group → Department (eBay item specific) ─
@@ -137,16 +164,8 @@ function clGetShoeEbayCategoryIdFor(row) {
 }
 
 function clGetShoeConditionIdFor(row) {
-  if (!row.condition) return 1000;
-  var conditionMap = {
-    'NEW_WITH_BOX': 1000,
-    'NEW_WITHOUT_BOX': 1500,
-    'NEW_WITH_DEFECTS': 1750,
-    'PREOWNED_EXCELLENT': 2990,
-    'PREOWNED_GOOD': 3000,
-    'PREOWNED_FAIR': 3010
-  };
-  return conditionMap[row.condition] || 1000;
+  if (!row || !row.condition) return undefined;
+  return CL_SHOE_CONDITION_MAP[row.condition];
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

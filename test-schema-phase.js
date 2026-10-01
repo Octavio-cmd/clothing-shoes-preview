@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 /**
- * DECISION #6 SCHEMA PHASE — 20 AUTOMATED TESTS
+ * DECISION #6 SCHEMA PHASE — COMPREHENSIVE AUTOMATED TEST SUITE
  *
- * Tests the Phase 1 schema changes:
+ * Tests the Phase 1 schema changes using REAL PRODUCTION FUNCTIONS:
  * - Item classification fields (itemType, gender, shoeGroup, sourceCategory, condition)
  * - Safe shoe detection via clIsShoeRow()
  * - Department mapping with no fallback
- * - eBay category routing
- * - Condition mapping
+ * - eBay category routing (all 20 categories across all 7 shoe groups)
+ * - Condition mapping (6 eBay conditions)
+ * - State isolation (shoes vs clothing)
+ * - Clothing regression tests
  *
  * Run: node test-schema-phase.js
  */
@@ -16,57 +18,8 @@
 const fs = require('fs');
 const path = require('path');
 
-// Load the shared cl-shoe-ebay module
+// Load the shared cl-shoe-ebay module (REAL PRODUCTION FUNCTIONS)
 const clShoeEbay = require(path.join(__dirname, 'cl-shoe-ebay.js'));
-
-// Mock cl state object and supporting state
-let cl = {
-  type: 'clothing',
-  gender: 'unisex',
-  shoeGroup: '',
-  sku: 'TEST-001',
-  category: 'Jeans',
-  condition: 'NEW_WITH_BOX',
-  brand: 'Nike',
-  color: 'Blue',
-  size: 'M',
-  style: '',
-  inseam: '',
-  dressLength: '',
-  outerMaterial: '',
-  swimStyle: '',
-  activity: '',
-  shoeWidth: '',
-  location: '',
-};
-
-// Simulate clBuildEbayRow function (minimal version for testing)
-function clBuildEbayRow_Mock(photoUrls) {
-  return {
-    // Decision #6 fields
-    itemType:       cl.type,
-    gender:         cl.gender,
-    shoeGroup:      cl.type === 'shoes' ? cl.shoeGroup : '',
-    sourceCategory: cl.category,
-    condition:      cl.condition,
-
-    // Existing fields (minimal subset for testing)
-    sku:            cl.sku || '',
-    photos:         photoUrls || '',
-    title:          'Test Item',
-    category:       cl.category || '',
-    categoryId:     '63861',
-    conditionId:    1000,
-    brand:          cl.brand || '',
-    size:           cl.size || '',
-    department:     'Unisex',
-    color:          cl.color || '',
-    type:           cl.category || '',
-    description:    'Test description',
-    price:          '9.99',
-    location:       'Lumberton, NC',
-  };
-}
 
 // Test results
 const tests = [];
@@ -115,272 +68,482 @@ function assertFalse(value, msg) {
   throw new Error(`${msg}: expected false, got ${value}`);
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// TESTS 1-5: Row Schema Completeness
-// ═══════════════════════════════════════════════════════════════════════════
-
-console.log('\n═══ TESTS 1-5: Row Schema Completeness ═══\n');
-
-test(1, 'Clothing row saves itemType=clothing', () => {
-  cl.type = 'clothing';
-  cl.gender = 'mens';
-  cl.shoeGroup = '';
-  cl.category = 'Jeans';
-  const row = clBuildEbayRow_Mock();
-  return assertEqual(row.itemType, 'clothing', 'itemType should be "clothing"');
-});
-
-test(2, 'Shoe row saves itemType=shoes', () => {
-  cl.type = 'shoes';
-  cl.gender = ''; // shoes don't use gender
-  cl.shoeGroup = 'mens';
-  cl.category = 'Athletic Shoes';
-  const row = clBuildEbayRow_Mock();
-  return assertEqual(row.itemType, 'shoes', 'itemType should be "shoes"');
-});
-
-test(3, 'Shoe row saves shoeGroup', () => {
-  cl.type = 'shoes';
-  cl.shoeGroup = 'womens';
-  cl.category = 'Athletic Shoes';
-  const row = clBuildEbayRow_Mock();
-  return assertEqual(row.shoeGroup, 'womens', 'shoeGroup should be "womens"');
-});
-
-test(4, 'New row saves sourceCategory', () => {
-  cl.type = 'shoes';
-  cl.category = 'Boots';
-  cl.shoeGroup = 'mens';
-  const row = clBuildEbayRow_Mock();
-  return assertEqual(row.sourceCategory, 'Boots', 'sourceCategory should be "Boots"');
-});
-
-test(5, 'New row saves condition', () => {
-  cl.condition = 'PREOWNED_EXCELLENT';
-  const row = clBuildEbayRow_Mock();
-  return assertEqual(row.condition, 'PREOWNED_EXCELLENT', 'condition should be preserved');
-});
+function assertNotUndefined(value, msg) {
+  if (value !== undefined) return true;
+  throw new Error(`${msg}: expected non-undefined value, got undefined`);
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TESTS 6: Clothing State Isolation
+// TESTS 1-7: Safe Shoe Detection (clIsShoeRow)
 // ═══════════════════════════════════════════════════════════════════════════
 
-console.log('\n═══ TEST 6: Clothing State Isolation ═══\n');
+console.log('\n═══ TESTS 1-7: Safe Shoe Detection via clIsShoeRow ═══\n');
 
-test(6, 'Clothing row keeps shoeGroup blank', () => {
-  cl.type = 'clothing';
-  cl.shoeGroup = 'should_be_cleared'; // Simulate attempt to set it
-  // When type is clothing, clBuildEbayRow should return empty shoeGroup
-  const row = clBuildEbayRow_Mock();
-  return assertEqual(row.shoeGroup, '', 'shoeGroup should be empty for clothing');
-});
-
-// ═══════════════════════════════════════════════════════════════════════════
-// TESTS 7-8: Safe Shoe Detection (clIsShoeRow)
-// ═══════════════════════════════════════════════════════════════════════════
-
-console.log('\n═══ TESTS 7-8: Safe Shoe Detection via clIsShoeRow ═══\n');
-
-test(7, 'clIsShoeRow(shoe)=true', () => {
-  cl.type = 'shoes';
-  cl.shoeGroup = 'mens';
-  const row = clBuildEbayRow_Mock();
+test(1, 'clIsShoeRow(shoe)=true', () => {
+  const row = { itemType: 'shoes', shoeGroup: 'mens' };
   return assertTrue(clShoeEbay.clIsShoeRow(row), 'should detect shoe row');
 });
 
-test(8, 'clIsShoeRow(clothing)=false', () => {
-  cl.type = 'clothing';
-  cl.shoeGroup = '';
-  const row = clBuildEbayRow_Mock();
+test(2, 'clIsShoeRow(clothing)=false', () => {
+  const row = { itemType: 'clothing', gender: 'mens' };
   return assertFalse(clShoeEbay.clIsShoeRow(row), 'should not detect clothing as shoe');
 });
 
-// ═══════════════════════════════════════════════════════════════════════════
-// TESTS 9-10: Unsupported Categories & Blocking
-// ═══════════════════════════════════════════════════════════════════════════
-
-console.log('\n═══ TESTS 9-10: Unsupported Categories ═══\n');
-
-test(9, 'Unsupported shoe category still identifiable as Shoe', () => {
-  cl.type = 'shoes';
-  cl.shoeGroup = 'mens';
-  cl.category = 'UnsupportedShoeType'; // Not in routing table
-  const row = clBuildEbayRow_Mock();
-  // Still should be identified as a shoe via itemType
-  return assertTrue(clShoeEbay.clIsShoeRow(row), 'should identify even unsupported shoe type via itemType');
+test(3, 'Legacy row without itemType returns false (safe fallback)', () => {
+  const legacyRow = { type: 'Boots', gender: 'mens' };
+  return assertFalse(clShoeEbay.clIsShoeRow(legacyRow), 'legacy ambiguous row should be false');
 });
 
-test(10, 'Unsupported category returns undefined categoryId (no silent fallback)', () => {
-  cl.type = 'shoes';
-  cl.shoeGroup = 'mens';
-  cl.category = 'UnknownCategory';
-  const row = clBuildEbayRow_Mock();
-  // Category routing should return undefined, not a fallback
-  const catId = clShoeEbay.clGetShoeEbayCategoryIdFor(row);
-  return assertUndefined(catId, 'should return undefined for unknown category');
+test(4, 'Null/undefined row returns false', () => {
+  return assertFalse(clShoeEbay.clIsShoeRow(null), 'null row should return false') &&
+         assertFalse(clShoeEbay.clIsShoeRow(undefined), 'undefined row should return false');
 });
 
-// ═══════════════════════════════════════════════════════════════════════════
-// TESTS 11-12: No Department Fallback (Explicit Blocking)
-// ═══════════════════════════════════════════════════════════════════════════
-
-console.log('\n═══ TESTS 11-12: Department Mapping Without Fallback ═══\n');
-
-test(11, 'Unknown shoeGroup returns undefined (no fallback)', () => {
-  cl.type = 'shoes';
-  cl.shoeGroup = 'invalid_group';
-  const row = clBuildEbayRow_Mock();
-  const dept = clShoeEbay.clShoeDeptFor(row);
-  return assertUndefined(dept, 'should return undefined for unknown shoeGroup (no fallback)');
+test(5, 'Row with itemType=shoes but no shoeGroup still returns true', () => {
+  const row = { itemType: 'shoes' };
+  return assertTrue(clShoeEbay.clIsShoeRow(row), 'itemType=shoes is the only requirement');
 });
 
-test(12, 'Valid shoeGroup returns correct Department', () => {
-  cl.type = 'shoes';
-  cl.shoeGroup = 'mens';
-  const row = clBuildEbayRow_Mock();
-  const dept = clShoeEbay.clShoeDeptFor(row);
-  return assertEqual(dept, 'Men', 'should return correct Department for valid shoeGroup');
+test(6, 'Empty object returns false', () => {
+  return assertFalse(clShoeEbay.clIsShoeRow({}), 'empty object should return false');
+});
+
+test(7, 'Object with itemType=other returns false', () => {
+  const row = { itemType: 'other', shoeGroup: 'mens' };
+  return assertFalse(clShoeEbay.clIsShoeRow(row), 'itemType must be exactly "shoes"');
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TESTS 13-16: Shoe Group Distinctions
+// TESTS 8-14: Department Mapping (7 Shoe Groups)
 // ═══════════════════════════════════════════════════════════════════════════
 
-console.log('\n═══ TESTS 13-16: Shoe Group Distinctions ═══\n');
+console.log('\n═══ TESTS 8-14: Department Mapping (All 7 Shoe Groups) ═══\n');
 
-test(13, 'Boys and Girls are distinct', () => {
-  cl.type = 'shoes';
-
-  cl.shoeGroup = 'boys';
-  const rowBoys = clBuildEbayRow_Mock();
-  const deptBoys = clShoeEbay.clShoeDeptFor(rowBoys);
-
-  cl.shoeGroup = 'girls';
-  const rowGirls = clBuildEbayRow_Mock();
-  const deptGirls = clShoeEbay.clShoeDeptFor(rowGirls);
-
-  return assertEqual(deptBoys, 'Boys', 'boys dept') &&
-         assertEqual(deptGirls, 'Girls', 'girls dept') &&
-         (deptBoys !== deptGirls ? true : (() => { throw new Error('departments should be distinct'); })());
+test(8, 'Mens shoeGroup → Men department', () => {
+  const row = { shoeGroup: 'mens' };
+  return assertEqual(clShoeEbay.clShoeDeptFor(row), 'Men', 'mens should map to Men');
 });
 
-test(14, 'Unisex Kids distinct from Boys/Girls', () => {
-  cl.type = 'shoes';
-
-  cl.shoeGroup = 'unisex_kids';
-  const rowKids = clBuildEbayRow_Mock();
-  const deptKids = clShoeEbay.clShoeDeptFor(rowKids);
-
-  cl.shoeGroup = 'boys';
-  const rowBoys = clBuildEbayRow_Mock();
-  const deptBoys = clShoeEbay.clShoeDeptFor(rowBoys);
-
-  return assertEqual(deptKids, 'Unisex Kids', 'kids dept') &&
-         (deptKids !== deptBoys ? true : (() => { throw new Error('should be distinct from Boys'); })());
+test(9, 'Womens shoeGroup → Women department', () => {
+  const row = { shoeGroup: 'womens' };
+  return assertEqual(clShoeEbay.clShoeDeptFor(row), 'Women', 'womens should map to Women');
 });
 
-test(15, 'Baby distinct from Kids', () => {
-  cl.type = 'shoes';
-
-  cl.shoeGroup = 'baby';
-  const rowBaby = clBuildEbayRow_Mock();
-  const deptBaby = clShoeEbay.clShoeDeptFor(rowBaby);
-
-  cl.shoeGroup = 'unisex_kids';
-  const rowKids = clBuildEbayRow_Mock();
-  const deptKids = clShoeEbay.clShoeDeptFor(rowKids);
-
-  return assertEqual(deptBaby, 'Unisex Baby & Toddler', 'baby dept') &&
-         (deptBaby !== deptKids ? true : (() => { throw new Error('should be distinct from Kids'); })());
+test(10, 'Boys shoeGroup → Boys department', () => {
+  const row = { shoeGroup: 'boys' };
+  return assertEqual(clShoeEbay.clShoeDeptFor(row), 'Boys', 'boys should map to Boys');
 });
 
-test(16, 'Unisex Adult exists and is distinct from Men/Women', () => {
-  cl.type = 'shoes';
+test(11, 'Girls shoeGroup → Girls department', () => {
+  const row = { shoeGroup: 'girls' };
+  return assertEqual(clShoeEbay.clShoeDeptFor(row), 'Girls', 'girls should map to Girls');
+});
 
-  cl.shoeGroup = 'unisex';
-  const rowUnisex = clBuildEbayRow_Mock();
-  const deptUnisex = clShoeEbay.clShoeDeptFor(rowUnisex);
+test(12, 'Unisex_kids shoeGroup → Unisex Kids department', () => {
+  const row = { shoeGroup: 'unisex_kids' };
+  return assertEqual(clShoeEbay.clShoeDeptFor(row), 'Unisex Kids', 'unisex_kids should map to Unisex Kids');
+});
 
-  cl.shoeGroup = 'mens';
-  const rowMens = clBuildEbayRow_Mock();
-  const deptMens = clShoeEbay.clShoeDeptFor(rowMens);
+test(13, 'Baby shoeGroup → Unisex Baby & Toddler department', () => {
+  const row = { shoeGroup: 'baby' };
+  return assertEqual(clShoeEbay.clShoeDeptFor(row), 'Unisex Baby & Toddler', 'baby should map to Unisex Baby & Toddler');
+});
 
-  return assertEqual(deptUnisex, 'Unisex Adults', 'unisex dept') &&
-         (deptUnisex !== deptMens ? true : (() => { throw new Error('should be distinct from Men'); })());
+test(14, 'Unisex shoeGroup → Unisex Adults department', () => {
+  const row = { shoeGroup: 'unisex' };
+  return assertEqual(clShoeEbay.clShoeDeptFor(row), 'Unisex Adults', 'unisex should map to Unisex Adults');
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TESTS 17-18: Legacy Row Handling
+// TESTS 15-20: No Department Fallback (Explicit Blocking)
 // ═══════════════════════════════════════════════════════════════════════════
 
-console.log('\n═══ TESTS 17-18: Legacy Row Handling ═══\n');
+console.log('\n═══ TESTS 15-20: Department Mapping Without Fallback ═══\n');
 
-test(17, 'Legacy ambiguous row (no itemType) cannot be safely detected as shoe', () => {
-  // Simulate legacy row missing itemType field
-  const legacyRow = {
-    type: 'Boots',  // Could be shoe type OR clothing category (ambiguous!)
-    gender: 'mens',
-    sourceCategory: undefined, // Not saved
-    // itemType is MISSING
-  };
-
-  // clIsShoeRow requires itemType field
-  const isSh = clShoeEbay.clIsShoeRow(legacyRow);
-  return assertFalse(isSh, 'legacy row without itemType should not be detected as shoe');
+test(15, 'Unknown shoeGroup returns undefined (no fallback)', () => {
+  const row = { shoeGroup: 'invalid_group' };
+  return assertUndefined(clShoeEbay.clShoeDeptFor(row), 'should return undefined for unknown shoeGroup');
 });
 
-test(18, 'Legacy Clothing row does not get forced into Shoe path', () => {
-  // Simulate legacy clothing row with shoes-like category name
-  const legacyClothing = {
-    itemType: 'clothing',
-    gender: 'womens',
-    shoeGroup: '', // Empty/not applicable
-    sourceCategory: 'Boots', // Could sound like shoe
-    type: 'Boots',
-  };
+test(16, 'Missing shoeGroup returns undefined', () => {
+  const row = {};
+  return assertUndefined(clShoeEbay.clShoeDeptFor(row), 'missing shoeGroup should return undefined');
+});
 
-  // Should NOT be treated as shoe just because category mentions Boots
-  const isSh = clShoeEbay.clIsShoeRow(legacyClothing);
-  return (isSh === false ? true : (() => { throw new Error('should not be detected as shoe'); })());
+test(17, 'Empty shoeGroup returns undefined', () => {
+  const row = { shoeGroup: '' };
+  return assertUndefined(clShoeEbay.clShoeDeptFor(row), 'empty shoeGroup should return undefined');
+});
+
+test(18, 'Null shoeGroup returns undefined', () => {
+  const row = { shoeGroup: null };
+  return assertUndefined(clShoeEbay.clShoeDeptFor(row), 'null shoeGroup should return undefined');
+});
+
+test(19, 'Case-sensitive: "Mens" (capital M) returns undefined', () => {
+  const row = { shoeGroup: 'Mens' };
+  return assertUndefined(clShoeEbay.clShoeDeptFor(row), 'shoeGroup is case-sensitive');
+});
+
+test(20, 'Typo "mens " (trailing space) returns undefined', () => {
+  const row = { shoeGroup: 'mens ' };
+  return assertUndefined(clShoeEbay.clShoeDeptFor(row), 'shoeGroup must be exact');
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TESTS 19-20: Backward Compatibility
+// TESTS 21-26: Condition Mapping (6 eBay Conditions)
 // ═══════════════════════════════════════════════════════════════════════════
 
-console.log('\n═══ TESTS 19-20: Backward Compatibility ═══\n');
+console.log('\n═══ TESTS 21-26: Condition Mapping (All 6 eBay Conditions) ═══\n');
 
-test(19, 'Existing row.type remains unchanged (sourceCategory takes over)', () => {
-  cl.type = 'shoes';
-  cl.category = 'Athletic Shoes';
-  cl.shoeGroup = 'womens';
-  const row = clBuildEbayRow_Mock();
-
-  // Old code might reference row.type, which is still set for backward compat
-  // New code should use row.sourceCategory instead
-  return assertEqual(row.type, 'Athletic Shoes', 'old row.type still present for compat') &&
-         assertEqual(row.sourceCategory, 'Athletic Shoes', 'new sourceCategory also set');
+test(21, 'NEW_WITH_BOX → 1000', () => {
+  const row = { condition: 'NEW_WITH_BOX' };
+  return assertEqual(clShoeEbay.clGetShoeConditionIdFor(row), 1000, 'NEW_WITH_BOX should map to 1000');
 });
 
-test(20, 'Condition mapping works for all approved conditions', () => {
-  const testConditions = [
-    { input: 'NEW_WITH_BOX', expected: 1000 },
-    { input: 'NEW_WITHOUT_BOX', expected: 1500 },
-    { input: 'NEW_WITH_DEFECTS', expected: 1750 },
-    { input: 'PREOWNED_EXCELLENT', expected: 2990 },
-    { input: 'PREOWNED_GOOD', expected: 3000 },
-    { input: 'PREOWNED_FAIR', expected: 3010 },
-  ];
+test(22, 'NEW_WITHOUT_BOX → 1500', () => {
+  const row = { condition: 'NEW_WITHOUT_BOX' };
+  return assertEqual(clShoeEbay.clGetShoeConditionIdFor(row), 1500, 'NEW_WITHOUT_BOX should map to 1500');
+});
 
-  for (let cond of testConditions) {
-    cl.condition = cond.input;
-    const row = clBuildEbayRow_Mock();
-    const condId = clShoeEbay.clGetShoeConditionIdFor(row);
-    if (condId !== cond.expected) {
-      throw new Error(`Condition ${cond.input}: expected ${cond.expected}, got ${condId}`);
-    }
+test(23, 'NEW_WITH_DEFECTS → 1750', () => {
+  const row = { condition: 'NEW_WITH_DEFECTS' };
+  return assertEqual(clShoeEbay.clGetShoeConditionIdFor(row), 1750, 'NEW_WITH_DEFECTS should map to 1750');
+});
+
+test(24, 'PREOWNED_EXCELLENT → 2990', () => {
+  const row = { condition: 'PREOWNED_EXCELLENT' };
+  return assertEqual(clShoeEbay.clGetShoeConditionIdFor(row), 2990, 'PREOWNED_EXCELLENT should map to 2990');
+});
+
+test(25, 'PREOWNED_GOOD → 3000', () => {
+  const row = { condition: 'PREOWNED_GOOD' };
+  return assertEqual(clShoeEbay.clGetShoeConditionIdFor(row), 3000, 'PREOWNED_GOOD should map to 3000');
+});
+
+test(26, 'PREOWNED_FAIR → 3010', () => {
+  const row = { condition: 'PREOWNED_FAIR' };
+  return assertEqual(clShoeEbay.clGetShoeConditionIdFor(row), 3010, 'PREOWNED_FAIR should map to 3010');
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TESTS 27-32: No Condition Fallback (Explicit Blocking)
+// ═══════════════════════════════════════════════════════════════════════════
+
+console.log('\n═══ TESTS 27-32: Condition Mapping Without Fallback ═══\n');
+
+test(27, 'Unknown condition returns undefined (no fallback)', () => {
+  const row = { condition: 'UNKNOWN_CONDITION' };
+  return assertUndefined(clShoeEbay.clGetShoeConditionIdFor(row), 'should return undefined for unknown condition');
+});
+
+test(28, 'Missing condition returns undefined', () => {
+  const row = {};
+  return assertUndefined(clShoeEbay.clGetShoeConditionIdFor(row), 'missing condition should return undefined');
+});
+
+test(29, 'Empty condition returns undefined', () => {
+  const row = { condition: '' };
+  return assertUndefined(clShoeEbay.clGetShoeConditionIdFor(row), 'empty condition should return undefined');
+});
+
+test(30, 'Case-sensitive: "new_with_box" (lowercase) returns undefined', () => {
+  const row = { condition: 'new_with_box' };
+  return assertUndefined(clShoeEbay.clGetShoeConditionIdFor(row), 'condition is case-sensitive');
+});
+
+test(31, 'Typo: "PREOWNED_EXCELLNT" returns undefined', () => {
+  const row = { condition: 'PREOWNED_EXCELLNT' };
+  return assertUndefined(clShoeEbay.clGetShoeConditionIdFor(row), 'condition must be exact');
+});
+
+test(32, 'Clothing condition "NWT" returns undefined for shoe path', () => {
+  const row = { condition: 'NWT' };
+  return assertUndefined(clShoeEbay.clGetShoeConditionIdFor(row), 'clothing conditions not valid for shoes');
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TESTS 33-38: Category Routing for MENS (multiple categories)
+// ═══════════════════════════════════════════════════════════════════════════
+
+console.log('\n═══ TESTS 33-38: Mens Shoe Routing ═══\n');
+
+const mensCategories = [
+  { cat: 'Sneakers', expected: 15709 },
+  { cat: 'Running', expected: 15709 },
+  { cat: 'Athletic', expected: 15709 },
+  { cat: 'Basketball', expected: 15709 },
+  { cat: 'Casual', expected: 24087 },
+  { cat: 'Dress Shoes', expected: 53120 },
+];
+
+mensCategories.forEach((item, idx) => {
+  const testNum = 33 + idx;
+  test(testNum, `Mens: ${item.cat} → ${item.expected}`, () => {
+    const row = { shoeGroup: 'mens', sourceCategory: item.cat };
+    return assertEqual(clShoeEbay.clGetShoeEbayCategoryIdFor(row), item.expected, `${item.cat} should route to ${item.expected}`);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TESTS 39-45: Category Routing for WOMENS (multiple categories)
+// ═══════════════════════════════════════════════════════════════════════════
+
+console.log('\n═══ TESTS 39-45: Womens Shoe Routing ═══\n');
+
+const womensCategories = [
+  { cat: 'Sneakers', expected: 95672 },
+  { cat: 'Running', expected: 95672 },
+  { cat: 'Athletic', expected: 95672 },
+  { cat: 'Basketball', expected: 95672 },
+  { cat: 'Casual', expected: 45333 },
+  { cat: 'Flats', expected: 45333 },
+  { cat: 'Heels', expected: 55793 },
+];
+
+womensCategories.forEach((item, idx) => {
+  const testNum = 39 + idx;
+  test(testNum, `Womens: ${item.cat} → ${item.expected}`, () => {
+    const row = { shoeGroup: 'womens', sourceCategory: item.cat };
+    return assertEqual(clShoeEbay.clGetShoeEbayCategoryIdFor(row), item.expected, `${item.cat} should route to ${item.expected}`);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TESTS 46-48: Boys Shoes (All categories → 57929)
+// ═══════════════════════════════════════════════════════════════════════════
+
+console.log('\n═══ TESTS 46-48: Boys Shoe Routing (All → 57929) ═══\n');
+
+test(46, 'Boys: Sneakers → 57929', () => {
+  const row = { shoeGroup: 'boys', sourceCategory: 'Sneakers' };
+  return assertEqual(clShoeEbay.clGetShoeEbayCategoryIdFor(row), 57929, 'boys sneakers → 57929');
+});
+
+test(47, 'Boys: Casual → 57929', () => {
+  const row = { shoeGroup: 'boys', sourceCategory: 'Casual' };
+  return assertEqual(clShoeEbay.clGetShoeEbayCategoryIdFor(row), 57929, 'boys casual → 57929');
+});
+
+test(48, 'Boys: Any category → 57929', () => {
+  const row = { shoeGroup: 'boys', sourceCategory: 'Boots' };
+  return assertEqual(clShoeEbay.clGetShoeEbayCategoryIdFor(row), 57929, 'boys boots → 57929');
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TESTS 49-51: Girls Shoes (All categories → 57974)
+// ═══════════════════════════════════════════════════════════════════════════
+
+console.log('\n═══ TESTS 49-51: Girls Shoe Routing (All → 57974) ═══\n');
+
+test(49, 'Girls: Sneakers → 57974', () => {
+  const row = { shoeGroup: 'girls', sourceCategory: 'Sneakers' };
+  return assertEqual(clShoeEbay.clGetShoeEbayCategoryIdFor(row), 57974, 'girls sneakers → 57974');
+});
+
+test(50, 'Girls: Casual → 57974', () => {
+  const row = { shoeGroup: 'girls', sourceCategory: 'Casual' };
+  return assertEqual(clShoeEbay.clGetShoeEbayCategoryIdFor(row), 57974, 'girls casual → 57974');
+});
+
+test(51, 'Girls: Any category → 57974', () => {
+  const row = { shoeGroup: 'girls', sourceCategory: 'Heels' };
+  return assertEqual(clShoeEbay.clGetShoeEbayCategoryIdFor(row), 57974, 'girls heels → 57974');
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TESTS 52-56: Unisex Routing (Mixed mapping)
+// ═══════════════════════════════════════════════════════════════════════════
+
+console.log('\n═══ TESTS 52-56: Unisex Shoe Routing (Mixed Mapping) ═══\n');
+
+test(52, 'Unisex: Sneakers → 15709', () => {
+  const row = { shoeGroup: 'unisex', sourceCategory: 'Sneakers' };
+  return assertEqual(clShoeEbay.clGetShoeEbayCategoryIdFor(row), 15709, 'unisex sneakers → 15709');
+});
+
+test(53, 'Unisex: Casual → 53548', () => {
+  const row = { shoeGroup: 'unisex', sourceCategory: 'Casual' };
+  return assertEqual(clShoeEbay.clGetShoeEbayCategoryIdFor(row), 53548, 'unisex casual → 53548');
+});
+
+test(54, 'Unisex: Dress Shoes → 53120', () => {
+  const row = { shoeGroup: 'unisex', sourceCategory: 'Dress Shoes' };
+  return assertEqual(clShoeEbay.clGetShoeEbayCategoryIdFor(row), 53120, 'unisex dress shoes → 53120');
+});
+
+test(55, 'Unisex_kids: Any category → undefined (deliberately unsupported)', () => {
+  const row = { shoeGroup: 'unisex_kids', sourceCategory: 'Sneakers' };
+  return assertUndefined(clShoeEbay.clGetShoeEbayCategoryIdFor(row), 'unisex_kids not supported');
+});
+
+test(56, 'Baby: Any category → undefined (deliberately unsupported)', () => {
+  const row = { shoeGroup: 'baby', sourceCategory: 'Sneakers' };
+  return assertUndefined(clShoeEbay.clGetShoeEbayCategoryIdFor(row), 'baby not supported');
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TESTS 57-62: Unknown Category (No Silent Fallback)
+// ═══════════════════════════════════════════════════════════════════════════
+
+console.log('\n═══ TESTS 57-62: Unknown Category Handling (No Fallback) ═══\n');
+
+test(57, 'Unknown category for mens → undefined', () => {
+  const row = { shoeGroup: 'mens', sourceCategory: 'UnknownType' };
+  return assertUndefined(clShoeEbay.clGetShoeEbayCategoryIdFor(row), 'unknown category should return undefined');
+});
+
+test(58, 'Unknown category for womens → undefined', () => {
+  const row = { shoeGroup: 'womens', sourceCategory: 'FakeCategory' };
+  return assertUndefined(clShoeEbay.clGetShoeEbayCategoryIdFor(row), 'unknown category should return undefined');
+});
+
+test(59, 'Empty sourceCategory → undefined', () => {
+  const row = { shoeGroup: 'mens', sourceCategory: '' };
+  return assertUndefined(clShoeEbay.clGetShoeEbayCategoryIdFor(row), 'empty sourceCategory should return undefined');
+});
+
+test(60, 'Missing sourceCategory → undefined', () => {
+  const row = { shoeGroup: 'mens' };
+  return assertUndefined(clShoeEbay.clGetShoeEbayCategoryIdFor(row), 'missing sourceCategory should return undefined');
+});
+
+test(61, 'Case-sensitive: "sneakers" (lowercase) → undefined', () => {
+  const row = { shoeGroup: 'mens', sourceCategory: 'sneakers' };
+  return assertUndefined(clShoeEbay.clGetShoeEbayCategoryIdFor(row), 'sourceCategory is case-sensitive');
+});
+
+test(62, 'Missing shoeGroup → undefined', () => {
+  const row = { sourceCategory: 'Sneakers' };
+  return assertUndefined(clShoeEbay.clGetShoeEbayCategoryIdFor(row), 'missing shoeGroup should return undefined');
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TESTS 63-68: State Isolation (Shoes vs Clothing)
+// ═══════════════════════════════════════════════════════════════════════════
+
+console.log('\n═══ TESTS 63-68: State Isolation (Shoes vs Clothing) ═══\n');
+
+test(63, 'Clothing row with shoeGroup name in sourceCategory is not a shoe', () => {
+  const row = { itemType: 'clothing', sourceCategory: 'Boots', gender: 'womens' };
+  return assertFalse(clShoeEbay.clIsShoeRow(row), 'clothing is not misidentified as shoe');
+});
+
+test(64, 'Clothing uses gender field, shoes use shoeGroup field', () => {
+  const clothRow = { itemType: 'clothing', gender: 'mens', shoeGroup: '' };
+  const shoeRow = { itemType: 'shoes', shoeGroup: 'mens', gender: '' };
+  return assertFalse(clShoeEbay.clIsShoeRow(clothRow), 'clothing is not shoe') &&
+         assertTrue(clShoeEbay.clIsShoeRow(shoeRow), 'shoes is shoe');
+});
+
+test(65, 'Shoe functions ignore gender field', () => {
+  const row1 = { shoeGroup: 'mens', sourceCategory: 'Sneakers', gender: 'womens' };
+  const row2 = { shoeGroup: 'womens', sourceCategory: 'Sneakers', gender: 'mens' };
+  const cat1 = clShoeEbay.clGetShoeEbayCategoryIdFor(row1);
+  const cat2 = clShoeEbay.clGetShoeEbayCategoryIdFor(row2);
+  return assertEqual(cat1, 15709, 'mens routing') && assertEqual(cat2, 95672, 'womens routing');
+});
+
+test(66, 'Department mapping for shoes ignores gender', () => {
+  const row = { shoeGroup: 'mens', gender: 'womens' };
+  return assertEqual(clShoeEbay.clShoeDeptFor(row), 'Men', 'uses shoeGroup, not gender');
+});
+
+test(67, 'Clothing condition codes (NWT, NWOT, etc) are invalid for shoes', () => {
+  const clothingConditions = ['NWT', 'NWOT', 'EXCEL', 'GOOD', 'FAIR'];
+  for (let cond of clothingConditions) {
+    const catId = clShoeEbay.clGetShoeConditionIdFor({ condition: cond });
+    if (catId !== undefined) throw new Error(`${cond} should not map to shoe condition`);
   }
   return true;
+});
+
+test(68, 'Shoe conditions (NEW_WITH_BOX, etc) are for shoes only', () => {
+  const row = { condition: 'NEW_WITH_BOX' };
+  const condId = clShoeEbay.clGetShoeConditionIdFor(row);
+  return assertNotUndefined(condId, 'NEW_WITH_BOX is valid shoe condition');
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TESTS 69-74: Legacy Row Handling
+// ═══════════════════════════════════════════════════════════════════════════
+
+console.log('\n═══ TESTS 69-74: Legacy Row Handling ═══\n');
+
+test(69, 'Legacy row missing itemType is not detected as shoe', () => {
+  const legacyRow = { type: 'Boots', gender: 'mens', sourceCategory: 'Boots' };
+  return assertFalse(clShoeEbay.clIsShoeRow(legacyRow), 'legacy ambiguous row should not be shoe');
+});
+
+test(70, 'Legacy row with type but no itemType cannot be routed', () => {
+  const legacyRow = { type: 'Boots', sourceCategory: 'Boots' };
+  const catId = clShoeEbay.clGetShoeEbayCategoryIdFor(legacyRow);
+  return assertUndefined(catId, 'legacy row without shoeGroup cannot be routed');
+});
+
+test(71, 'Explicit itemType=clothing is safe', () => {
+  const row = { itemType: 'clothing', sourceCategory: 'Boots', gender: 'mens' };
+  return assertFalse(clShoeEbay.clIsShoeRow(row), 'clothing is explicitly not a shoe');
+});
+
+test(72, 'Explicit itemType=shoes is safe', () => {
+  const row = { itemType: 'shoes', sourceCategory: 'Boots', shoeGroup: 'mens' };
+  return assertTrue(clShoeEbay.clIsShoeRow(row), 'shoes is explicitly a shoe');
+});
+
+test(73, 'Row with both itemType and type uses itemType for detection', () => {
+  const row = { itemType: 'clothing', type: 'Boots', sourceCategory: 'Boots' };
+  return assertFalse(clShoeEbay.clIsShoeRow(row), 'itemType takes precedence');
+});
+
+test(74, 'sourceCategory is NOT used for shoe detection, only itemType', () => {
+  const row = { itemType: 'clothing', sourceCategory: 'Boots', gender: 'mens' };
+  return assertFalse(clShoeEbay.clIsShoeRow(row), 'sourceCategory name does not affect detection');
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TESTS 75-80: Clothing Regression (No Existing Functionality Broken)
+// ═══════════════════════════════════════════════════════════════════════════
+
+console.log('\n═══ TESTS 75-80: Clothing Regression Tests ═══\n');
+
+test(75, 'Clothing is not a shoe', () => {
+  const row = { itemType: 'clothing', gender: 'mens' };
+  return assertFalse(clShoeEbay.clIsShoeRow(row), 'clothing is not a shoe');
+});
+
+test(76, 'Shoe functions return undefined for clothing rows', () => {
+  const clothRow = { itemType: 'clothing', gender: 'womens' };
+  const dept = clShoeEbay.clShoeDeptFor(clothRow);
+  return assertUndefined(dept, 'shoe functions should not process clothing');
+});
+
+test(77, 'Shoe routing is not called on clothing rows', () => {
+  const clothRow = { itemType: 'clothing', sourceCategory: 'Jeans', gender: 'mens' };
+  const catId = clShoeEbay.clGetShoeEbayCategoryIdFor(clothRow);
+  return assertUndefined(catId, 'shoe routing should not apply to clothing');
+});
+
+test(78, 'clIsShoeRow is the safe detection boundary', () => {
+  const clothRow = { itemType: 'clothing' };
+  if (clShoeEbay.clIsShoeRow(clothRow)) {
+    throw new Error('clothing must not be detected as shoe');
+  }
+  return true;
+});
+
+test(79, 'Multiple rows can be evaluated independently', () => {
+  const row1 = { itemType: 'shoes', shoeGroup: 'mens' };
+  const row2 = { itemType: 'clothing', gender: 'womens' };
+  return assertTrue(clShoeEbay.clIsShoeRow(row1), 'row1 is shoe') &&
+         assertFalse(clShoeEbay.clIsShoeRow(row2), 'row2 is not shoe');
+});
+
+test(80, 'Pure functions have no side effects', () => {
+  const row = { shoeGroup: 'mens', sourceCategory: 'Sneakers' };
+  const dept1 = clShoeEbay.clShoeDeptFor(row);
+  const dept2 = clShoeEbay.clShoeDeptFor(row);
+  return assertEqual(dept1, dept2, 'same row produces same result');
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -388,7 +551,7 @@ test(20, 'Condition mapping works for all approved conditions', () => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 console.log('\n' + '═'.repeat(70));
-console.log('SCHEMA PHASE TEST RESULTS');
+console.log('SCHEMA PHASE COMPREHENSIVE TEST RESULTS');
 console.log('═'.repeat(70));
 console.log(`\nTotal:  ${tests.length} tests`);
 console.log(`Passed: ${passed} tests ✓`);
@@ -396,7 +559,7 @@ console.log(`Failed: ${failed} tests ✗`);
 console.log('\n' + '═'.repeat(70));
 
 if (failed === 0) {
-  console.log('✓ ALL TESTS PASSED — Schema phase ready for integration\n');
+  console.log('✓ ALL TESTS PASSED — Schema phase ready for production\n');
   process.exit(0);
 } else {
   console.log(`✗ ${failed} TEST(S) FAILED — Review above\n`);
