@@ -2993,6 +2993,28 @@ function clChangeType(type) {
   const prev = cl.type || 'clothing';
   clSetType(type);
   if (type !== prev) clDropIncompatibleTypeState(type);
+  clRenderTypeGroupSelector();
+}
+
+function clRenderTypeGroupSelector() {
+  const container = document.querySelector('.cl-sect:nth-of-type(2)');
+  if (!container) return;
+  const isShoes = cl.type === 'shoes';
+  const label = isShoes ? 'SHOE GROUP' : 'GENDER';
+  const options = isShoes ? CL_SHOE_GROUP_OPTIONS : CL_GENDER_OPTIONS;
+  const selectedField = isShoes ? 'shoeGroup' : 'gender';
+  const dataAttr = isShoes ? 'data-cl-shoe-group' : 'data-cl-gender';
+  const onchangeFunc = isShoes ? 'clChangeShoeGroup' : 'clChangeGender';
+
+  container.innerHTML = `
+    <div class="lbl">${label}</div>
+    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+      ${options.map(opt=>`<button class="cl-cond-btn${cl[selectedField]===opt.id?' sel':''}" ${dataAttr}="${opt.id}" onclick="${onchangeFunc}('${opt.id}');this.closest('div').querySelectorAll('button').forEach(b=>b.classList.remove('sel'));this.classList.add('sel')" style="flex:1;min-width:60px;padding:14px 8px">
+        <div style="font-size:22px;margin-bottom:4px">${opt.icon}</div>
+        <div class="cond-lbl" style="font-size:12px">${opt.label}</div>
+      </button>`).join('')}
+    </div>
+  `;
 }
 
 function clChangeGender(g) {
@@ -3032,6 +3054,7 @@ function clBackToType() {
   clGo(1);
   document.querySelectorAll('#cl-sku [data-cl-type]').forEach(b => b.classList.toggle('sel', b.dataset.clType === cl.type));
   document.querySelectorAll('#cl-sku [data-cl-gender]').forEach(b => b.classList.toggle('sel', b.dataset.clGender === cl.gender));
+  document.querySelectorAll('#cl-sku [data-cl-shoe-group]').forEach(b => b.classList.toggle('sel', b.dataset.clShoeGroup === cl.shoeGroup));
 }
 
 const CL_CATS = ['T-Shirt','Shirt','Shacket','Polo','Tank Top','Hoodie','Quarter Zip','Sweatshirt','Sweater',
@@ -3281,9 +3304,10 @@ function clUpdateProgress(step) {
 
 // ── Step 1: SKU ─────────────────────────────────────────────
 function clRenderSKU() {
-  cl = { sku:'', brand:'', brandCustom:'', category:'', size:'L',
+  cl = { sku:'', brand:'', brandCustom:'', category:'', size:'',
     color:'', colorCustom:'', condition:'', defects:[], notes:'', weightLb:'', weightOz:'',
-    photos:{ front:null, back:null, tag:null, detail:null, meas1:null, meas2:null }, location:'', step:1 };
+    photos:{ front:null, back:null, tag:null, detail:null, meas1:null, meas2:null }, location:'', step:1,
+    type:'clothing', itemType:'clothing', gender:'', shoeGroup:'', outerMaterial:'', shoeWidth:'' };
   // Update session badge
   clUpdateSessionBadge();
 
@@ -3380,27 +3404,15 @@ function clRenderSKU() {
       </div>
     </div>
 
-    <div class="cl-sect" style="margin-top:12px">
-      <div class="lbl">${cl.type === 'shoes' ? 'SHOE GROUP' : 'GENDER'}</div>
-      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-        ${cl.type === 'shoes'
-          ? CL_SHOE_GROUP_OPTIONS.map(sg=>`<button class="cl-cond-btn${cl.shoeGroup===sg.id?' sel':''}" data-cl-shoe-group="${sg.id}" onclick="clChangeShoeGroup('${sg.id}');this.closest('div').querySelectorAll('button').forEach(b=>b.classList.remove('sel'));this.classList.add('sel')" style="flex:1;min-width:60px;padding:14px 8px">
-              <div style="font-size:22px;margin-bottom:4px">${sg.icon}</div>
-              <div class="cond-lbl" style="font-size:12px">${sg.label}</div>
-            </button>`).join('')
-          : CL_GENDER_OPTIONS.map(g=>`<button class="cl-cond-btn${cl.gender===g.id?' sel':''}" data-cl-gender="${g.id}" onclick="clChangeGender('${g.id}');this.closest('div').querySelectorAll('button').forEach(b=>b.classList.remove('sel'));this.classList.add('sel')" style="flex:1;min-width:60px;padding:14px 8px">
-              <div style="font-size:22px;margin-bottom:4px">${g.icon}</div>
-              <div class="cond-lbl" style="font-size:12px">${g.label}</div>
-            </button>`).join('')
-        }
-      </div>
-    </div>
+    <div class="cl-sect" style="margin-top:12px"></div>
     <button class="add-btn" onclick="clStep1Next()">Continue →</button>`;
   clAutoSKU();
+  clRenderTypeGroupSelector();
 }
 
 function clAutoSKU() {
-  const sku = 'CLO-GEN-L-' + Date.now().toString().slice(-5);
+  const typePrefix = cl.type === 'shoes' ? 'SHO' : 'CLO';
+  const sku = typePrefix + '-GEN-L-' + Date.now().toString().slice(-5);
   cl.sku = sku;
   const el = $('cl-sku-display');
   if (el) el.textContent = sku;
