@@ -3058,6 +3058,19 @@ function clBackToType() {
   document.querySelectorAll('#cl-sku [data-cl-shoe-group]').forEach(b => b.classList.toggle('sel', b.dataset.clShoeGroup === cl.shoeGroup));
 }
 
+function clBackFromItemInfo() {
+  // Preserve all current Item Info state in cl object
+  // Do NOT call clRenderSKU() which would reset state
+  clGo(1);
+  // Update visual selection of type buttons
+  document.querySelectorAll('#cl-sku [data-cl-type]').forEach(b => b.classList.toggle('sel', b.dataset.clType === cl.type));
+  // Update visual selection of gender/shoeGroup buttons
+  document.querySelectorAll('#cl-sku [data-cl-gender]').forEach(b => b.classList.toggle('sel', b.dataset.clGender === cl.gender));
+  document.querySelectorAll('#cl-sku [data-cl-shoe-group]').forEach(b => b.classList.toggle('sel', b.dataset.clShoeGroup === cl.shoeGroup));
+  // Re-render the selector to ensure it displays correctly
+  clRenderTypeGroupSelector();
+}
+
 const CL_CATS = ['T-Shirt','Shirt','Shacket','Polo','Tank Top','Hoodie','Quarter Zip','Sweatshirt','Sweater',
   'Jacket','Coat','Vest','Pants','Jeans','Shorts','Dress','Skirt',
   'Activewear Top','Activewear Bottom','Swimwear','Scrubs','Other'];
@@ -3970,7 +3983,7 @@ function clRenderAttr() {
   el.innerHTML = `
     <div class="cl-step-hdr"><h2>Item Info</h2><p>Fast — tap to select</p></div>
     <div class="cl-prog">${[1,2,3,4,5].map(i=>`<div class="cl-step-dot${i<=2?(i<2?' done':' active'):''}" id="cl-step-${i}"></div>`).join('<div class="cl-step-line"></div>')}</div>
-    <button class="ag-btn" id="cl-attr-back-top" onclick="clBackToType()" style="margin-bottom:12px">← Regresar</button>
+    <button class="ag-btn" id="cl-attr-back-top" onclick="clBackFromItemInfo()" style="margin-bottom:12px">← Regresar</button>
 
     <div class="cl-sect">
       <div class="lbl">BRAND</div>
@@ -4104,7 +4117,7 @@ function clRenderAttr() {
     </div>
 
     <div style="display:flex;gap:10px;margin-top:4px">
-      <button class="ag-btn" onclick="clBackToType()" style="flex:1">← Back</button>
+      <button class="ag-btn" onclick="clBackFromItemInfo()" style="flex:1">← Back</button>
       <button class="add-btn" onclick="clStep2Next()" style="flex:2;margin-bottom:0">Continue →</button>
     </div>`;
 }
