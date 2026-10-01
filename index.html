@@ -733,6 +733,25 @@
     <p>Point at the barcode on the box or bin</p>
   </div>
   <div id="loc-qr-video" style="width:100%;max-width:340px;border-radius:14px;border:2px solid var(--ac);overflow:hidden"></div>
+
+  <div class="loc-manual-wrap" style="width:100%;max-width:340px;margin-top:20px;padding-top:20px;border-top:1px solid rgba(255,255,255,.2)">
+    <div style="text-align:center;color:rgba(255,255,255,.7);font-size:13px;margin-bottom:12px">OR ENTER LOCATION MANUALLY</div>
+    <input
+      id="loc-manual-input"
+      type="text"
+      placeholder="Example: A-12, BIN-24, RACK-3-A"
+      autocomplete="off"
+      style="width:100%;padding:10px;margin-bottom:10px;border:1px solid var(--ac);border-radius:6px;background:rgba(255,255,255,.1);color:white;font-size:14px"
+      onkeydown="if(event.key==='Enter'){event.preventDefault();locSaveManual();}"
+    >
+    <button
+      type="button"
+      onclick="locSaveManual()"
+      style="width:100%;padding:10px;background:var(--ac);color:var(--bg);border:none;border-radius:6px;font-weight:600;cursor:pointer;margin-bottom:10px">
+      Save Location
+    </button>
+  </div>
+
   <button class="loc-cancel" onclick="locClose()">✕ Cancel</button>
 </div>
 

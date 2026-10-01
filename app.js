@@ -2791,6 +2791,15 @@ let _locTarget = null; // 'scanner' or 'clothing'
 
 async function locOpen(target) {
   _locTarget = target;
+  const input = document.getElementById('loc-manual-input');
+
+  // Pre-fill manual input with existing location if one exists
+  if (target === 'clothing') {
+    input.value = cl.location || '';
+  } else if (target === 'scanner') {
+    input.value = cur?.location || '';
+  }
+
   document.getElementById('loc-overlay').classList.add('on');
   savvyStopScan('loc-qr-video');
   savvyStartScan('loc-qr-video', async (code) => {
@@ -2832,6 +2841,18 @@ function locClear(target) {
     const badge = document.getElementById('loc-badge-clothing');
     if (badge) badge.outerHTML = locEmptyHTML('clothing');
   }
+}
+
+function locSaveManual() {
+  const input = document.getElementById('loc-manual-input');
+  const code = (input?.value || '').trim();
+
+  if (!code) {
+    toast('⚠️ Enter a location');
+    return;
+  }
+
+  locCapture(code);
 }
 
 function locBadgeHTML(code, target) {
