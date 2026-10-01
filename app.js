@@ -6021,9 +6021,17 @@ function clExportEbayCSV() {
   var lines=['Info,Version=1.0.0,Template=fx_category_template_EBAY_US',HDR.join(',')];
 
   // ── STEP 6: Use shared row builder helper ──────────────────────────────
-  sess.forEach(function(r){
-    lines.push(clShoeEbay.clBuildEbayCsvRow(r, hasShoes, config));
-  });
+  for (var idx = 0; idx < sess.length; idx++) {
+    var rowResult = clShoeEbay.clBuildEbayCsvRow(sess[idx], hasShoes, config);
+    if (!rowResult.ok) {
+      var errMsg = rowResult.error && rowResult.error.message
+        ? rowResult.error.message
+        : 'Row ' + (idx+1) + ': CSV generation failed';
+      toast('⚠️ ' + errMsg);
+      return;
+    }
+    lines.push(rowResult.csv);
+  }
   var csv=lines.join('\r\n');
   var now=new Date();
   var stamp=now.toISOString().slice(0,10)+'-'

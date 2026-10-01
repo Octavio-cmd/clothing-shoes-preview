@@ -231,10 +231,12 @@ function clBuildEbayRowData(input) {
     conditionId: input.conditionId,
     aspects: input.aspects || {},
     brand: input.brand || '',
+    brandCustom: input.brandCustom || '',
     sizeType: input.sizeType || '',
     size: input.size || '',
     department: input.department,
     color: input.color || '',
+    colorCustom: input.colorCustom || '',
     style: input.style || '',
     inseam: input.inseam || '',
     dressLength: input.dressLength || '',
@@ -471,23 +473,21 @@ function clValidateShoeExport(session) {
 
     if (!clIsShoeRow(row)) continue;
 
-    if (!row.shoeGroup) {
-      return { ok: false, error: 'Row '+(i+1)+': missing shoeGroup' };
-    }
-    if (!row.sourceCategory) {
-      return { ok: false, error: 'Row '+(i+1)+': missing sourceCategory' };
-    }
-    if (!row.condition) {
-      return { ok: false, error: 'Row '+(i+1)+': missing condition' };
-    }
-    if (row.categoryId === undefined) {
-      return { ok: false, error: 'Row '+(i+1)+': unsupported shoe category ('+row.sourceCategory+')' };
-    }
-    if (row.conditionId === undefined) {
-      return { ok: false, error: 'Row '+(i+1)+': unsupported shoe condition ('+row.condition+')' };
-    }
-    if (row.department === undefined) {
-      return { ok: false, error: 'Row '+(i+1)+': invalid shoe group ('+row.shoeGroup+')' };
+    var resolved = clResolveShoeEbayAspects(row);
+    if (!resolved.ok) {
+      var sku = row.sku || '(no SKU)';
+      var title = row.title || '(no title)';
+      return {
+        ok: false,
+        error: 'Row '+(i+1)+' (SKU: '+sku+'): '+resolved.message,
+        rowIndex: i+1,
+        sku: sku,
+        title: title,
+        code: resolved.code,
+        field: resolved.field,
+        value: resolved.value,
+        expected: resolved.expected
+      };
     }
   }
   return { ok: true };
@@ -527,6 +527,16 @@ function clBuildEbayCsvRow(row, hasShoes, config) {
   var PAY = config.paymentProfile || 'STANDARD';
 
   var isShoe = clIsShoeRow(row);
+
+  // Resolve shoe taxonomy for shoes (fail closed if invalid)
+  var resolved = null;
+  if (isShoe) {
+    resolved = clResolveShoeEbayAspects(row);
+    if (!resolved.ok) {
+      return { ok: false, error: resolved };
+    }
+  }
+
   var needsInseam = ['Jeans','Pants','Shorts'].includes(row.type);
   var needsDressLen = ['Dress','Skirt'].includes(row.type);
   var needsOuter = ['Jacket','Coat','Vest'].includes(row.type);
@@ -538,18 +548,21 @@ function clBuildEbayCsvRow(row, hasShoes, config) {
   }
 
   var rowData = [
-    'Add',row.sku||'',row.categoryId,row.title||'',row.conditionId,
-    row.brand||'',
+    'Add',row.sku||'',
+    isShoe ? resolved.categoryId : row.categoryId,
+    row.title||'',
+    isShoe ? resolved.conditionId : row.conditionId,
+    isShoe ? resolved.brand : (row.brand||''),
     isShoe ? '' : (row.sizeType||'Regular'),
     isShoe ? '' : (row.size||''),
-    row.department||'',
-    asp(row.color),
-    asp(row.style),
-    asp(row.type),
+    isShoe ? resolved.department : (row.department||''),
+    isShoe ? resolved.color : asp(row.color),
+    isShoe ? resolved.style : asp(row.style),
+    isShoe ? resolved.ebayType : asp(row.type),
     isShoe ? '' : (asp(row.inseam) || (needsInseam ? (row.type === 'Shorts' ? '9"' : '30"') : '')),
     isShoe ? '' : (asp(row.dressLength) || (needsDressLen ? 'Knee Length' : '')),
     isShoe ? '' : (asp(row.outerMaterial) || (needsOuter ? 'Polyester' : '')),
-    asp(row.activity) || (needsActivity && !isShoe ? 'General Fitness' : ''),
+    isShoe ? resolved.activity : (asp(row.activity) || (needsActivity ? 'General Fitness' : '')),
     isShoe ? '' : (asp(row.shoeWidth) || ''),
     row.photos||'',
     row.description||('<p>'+(row.title||'')+'</p>'),
@@ -560,13 +573,13 @@ function clBuildEbayCsvRow(row, hasShoes, config) {
 
   if (hasShoes) {
     if (isShoe) {
-      rowData.push(row.size || '', row.outerMaterial || '', row.shoeWidth || '');
+      rowData.push(resolved.size, resolved.upperMaterial, resolved.shoeWidth);
     } else {
       rowData.push('', '', '');
     }
   }
 
-  return rowData.map(q).join(',');
+  return { ok: true, csv: rowData.map(q).join(',') };
 }
 
 var clShoeEbay = {
