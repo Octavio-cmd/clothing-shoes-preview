@@ -5533,61 +5533,50 @@ function clBuildEbayRow(photoUrls) {
   const desc  = document.getElementById('cl-desc-display') ? document.getElementById('cl-desc-display').innerHTML : '';
   const dept  = clDept();
   const priceEl = document.getElementById('cl-price-input');
+  const priceNorm = clNormalizePrice(priceEl ? priceEl.value : '');
+  const totalLb = clWeightTotalLb();
 
-  // For shoes, build a temporary row to calculate categoryId/conditionId via shared functions
-  const tempRow = {
+  var input = {
     itemType: cl.type,
+    gender: cl.gender,
     shoeGroup: cl.type === 'shoes' ? cl.shoeGroup : '',
     sourceCategory: cl.category,
     condition: cl.condition,
-  };
-
-  return {
-    // ── DECISION #6: Item classification fields ──────────────────────
-    itemType:       cl.type,                           // 'clothing' or 'shoes'
-    gender:         cl.gender,                         // Clothing gender: 'mens', 'womens', 'kids', 'unisex'
-    shoeGroup:      cl.type === 'shoes' ? cl.shoeGroup : '', // Shoes group: 'mens', 'womens', 'boys', 'girls', 'unisex_kids', 'baby', 'unisex'
-    sourceCategory: cl.category,                       // Internal category name (used as shoeType for shoes)
-    condition:      cl.condition,                      // Internal condition code
-
-    // ── Existing fields (preserved for backward compatibility) ────────
-    sku:        cl.sku || '',
-    photos:     photoUrls || '',
-    title:      title,
-    category:   clBuildEbayCategory ? clBuildEbayCategory() : cl.category || '',
-    categoryId: cl.type === 'shoes' ? clShoeEbay.clGetShoeEbayCategoryIdFor(tempRow) : (clGetEbayCategoryId ? clGetEbayCategoryId() : '63861'),
-    conditionId:cl.type === 'shoes' ? clShoeEbay.clGetShoeConditionIdFor(tempRow) : (clGetConditionId ? clGetConditionId() : 1000),
-    aspects:    clBuildAspects(),
-    brand:      cl.brand || '',
-    sizeType:   clSizeType(),
-    size:       cl.size || '',
+    sku: cl.sku || '',
+    photos: photoUrls || '',
+    title: title,
+    category: clBuildEbayCategory ? clBuildEbayCategory() : cl.category || '',
+    categoryId: cl.type === 'shoes' ? undefined : (clGetEbayCategoryId ? clGetEbayCategoryId() : undefined),
+    conditionId: cl.type === 'shoes' ? undefined : (clGetConditionId ? clGetConditionId() : undefined),
+    aspects: clBuildAspects(),
+    brand: cl.brand || '',
+    sizeType: clSizeType(),
+    size: cl.size || '',
     department: dept,
-    color:      clCleanColor(cl.color),
-    style:      cl.style || '',
-    inseam:     cl.inseam || '',
-    dressLength:cl.dressLength || '',
+    color: clCleanColor(cl.color),
+    style: cl.style || '',
+    inseam: cl.inseam || '',
+    dressLength: cl.dressLength || '',
     outerMaterial: cl.outerMaterial || '',
-    swimStyle:  cl.swimStyle || '',
-    activity:   cl.activity || '',
-    shoeWidth:  cl.shoeWidth || '',
-    type:       cl.category || '',
-    description:desc || ('<p>' + title + '</p><p>Ships fast from Lumberton, NC.</p>'),
-    price:      (function(){ var n = clNormalizePrice(priceEl ? priceEl.value : ''); return isFinite(n) ? n.toFixed(2) : ''; })(),
-    location:   'Lumberton, NC',
+    swimStyle: cl.swimStyle || '',
+    activity: cl.activity || '',
+    shoeWidth: cl.shoeWidth || '',
+    type: cl.category || '',
+    description: desc || ('<p>' + title + '</p><p>Ships fast from Lumberton, NC.</p>'),
+    price: isFinite(priceNorm) ? priceNorm.toFixed(2) : '',
+    location: 'Lumberton, NC',
     warehouseLocation: cl.location || '',
-    // ── PESO (15 ago 2026) ───────────────────────────────────────────────
-    // eBay File Exchange lo quiere partido: WeightMajor = libras enteras,
-    // WeightMinor = onzas restantes. Se guarda también el total decimal
-    // para la hoja de registro y para ShipStation.
-    weightMajor: (function(){ var t = clWeightTotalLb(); return t > 0 ? Math.floor(t) : ''; })(),
+    weightMajor: totalLb > 0 ? Math.floor(totalLb) : '',
     weightMinor: (function(){
-      var t = clWeightTotalLb(); if (!(t > 0)) return '';
-      var maj = Math.floor(t), min = Math.round((t - maj) * 16);
+      if (!(totalLb > 0)) return '';
+      var maj = Math.floor(totalLb), min = Math.round((totalLb - maj) * 16);
       return min === 16 ? 0 : min;
     })(),
-    weightTotalLb: (function(){ var t = clWeightTotalLb(); return t > 0 ? t.toFixed(2) : ''; })(),
-    weightLabel: clWeightLabel(),
+    weightTotalLb: totalLb > 0 ? totalLb.toFixed(2) : '',
+    weightLabel: clWeightLabel()
   };
+
+  return clShoeEbay.clBuildEbayRowData(input);
 }
 
 // Guardar en sesión para export masivo
@@ -6033,25 +6022,8 @@ function clExportEbayCSV() {
   }
   var lines=['Info,Version=1.0.0,Template=fx_category_template_EBAY_US',HDR.join(',')];
 
-  // Decision #5 frozen: 17 approved shoe type/group combinations
-  var APPROVED_ROUTING = {
-    'mens': ['Athletic Shoes','Boots','Casual Shoes','Dress Shoes','Sandals','Slippers'],
-    'womens': ['Athletic Shoes','Boots','Comfort Shoes','Flats','Heels','Sandals','Slippers'],
-    'boys': ['Shoes'],
-    'girls': ['Shoes'],
-    'kids': ['Shoes'],
-    'baby': ['Shoes']
-  };
-  var isShoeItem = function(r) {
-    var keys = Object.keys(APPROVED_ROUTING);
-    for (var i = 0; i < keys.length; i++) {
-      if (APPROVED_ROUTING[keys[i]].includes(r.type)) return true;
-    }
-    return false;
-  };
-
   sess.forEach(function(r){
-    var isShoe = isShoeItem(r);
+    var isShoe = clShoeEbay.clIsShoeRow(r);
     var needsInseam = ['Jeans','Pants','Shorts'].includes(r.type);
     var needsDressLen = ['Dress','Skirt'].includes(r.type);
     var needsOuter = ['Jacket','Coat','Vest'].includes(r.type);

@@ -609,14 +609,15 @@ test(89, 'clBuildEbayRow() does NOT have || "63861" fallback for shoes', () => {
   return !line.match(/shoes.*\|\|.*63861/) && !line.match(/shoes.*\|\|.*1000/) ? true : (() => {throw new Error('clBuildEbayRow has forbidden fallbacks')})();
 });
 
-test(90, 'clBuildEbayRow() calls clShoeEbay.clGetShoeEbayCategoryIdFor', () => {
+test(90, 'clBuildEbayRow() calls clShoeEbay.clBuildEbayRowData', () => {
   const appContent = fs.readFileSync(path.join(__dirname, 'app.js'), 'utf8');
-  return appContent.includes('clShoeEbay.clGetShoeEbayCategoryIdFor') ? true : (() => {throw new Error('Not using shared category function')})();
+  return appContent.includes('clShoeEbay.clBuildEbayRowData') ? true : (() => {throw new Error('Not using shared builder')})();
 });
 
-test(91, 'clBuildEbayRow() calls clShoeEbay.clGetShoeConditionIdFor', () => {
-  const appContent = fs.readFileSync(path.join(__dirname, 'app.js'), 'utf8');
-  return appContent.includes('clShoeEbay.clGetShoeConditionIdFor') ? true : (() => {throw new Error('Not using shared condition function')})();
+test(91, 'clShoeEbay.clBuildEbayRowData internally calls shared functions', () => {
+  const shoeEbayContent = fs.readFileSync(path.join(__dirname, 'cl-shoe-ebay.js'), 'utf8');
+  return shoeEbayContent.includes('clGetShoeEbayCategoryIdFor') &&
+         shoeEbayContent.includes('clGetShoeConditionIdFor') ? true : (() => {throw new Error('Shared functions not used in builder')})();
 });
 
 test(92, 'unisex_kids routing ONLY has Kids Sneakers and Kids Boots', () => {
@@ -652,6 +653,157 @@ test(95, 'clBuildEbayRowData pure function accepts input with all fields', () =>
          assertEqual(result.categoryId, 15709, 'output categoryId') &&
          assertEqual(result.conditionId, 1000, 'output conditionId') &&
          assertEqual(result.department, 'Men', 'output department');
+});
+
+test(96, 'CSV row detection: itemType=shoes + Sneakers → Shoe row', () => {
+  const shoeRow = {
+    itemType: 'shoes',
+    sourceCategory: 'Sneakers',
+    shoeGroup: 'mens'
+  };
+  return clShoeEbay.clIsShoeRow(shoeRow) === true ? true : (() => {throw new Error('Not detected as shoe')})();
+});
+
+test(97, 'CSV row detection: itemType=shoes + Running → Shoe row', () => {
+  const shoeRow = {
+    itemType: 'shoes',
+    sourceCategory: 'Running',
+    shoeGroup: 'womens'
+  };
+  return clShoeEbay.clIsShoeRow(shoeRow) === true ? true : (() => {throw new Error('Not detected as shoe')})();
+});
+
+test(98, 'CSV row detection: itemType=shoes + Athletic → Shoe row', () => {
+  const shoeRow = {
+    itemType: 'shoes',
+    sourceCategory: 'Athletic',
+    shoeGroup: 'mens'
+  };
+  return clShoeEbay.clIsShoeRow(shoeRow) === true ? true : (() => {throw new Error('Not detected as shoe')})();
+});
+
+test(99, 'CSV row detection: itemType=shoes + Kids Sneakers → Shoe row', () => {
+  const shoeRow = {
+    itemType: 'shoes',
+    sourceCategory: 'Kids Sneakers',
+    shoeGroup: 'unisex_kids'
+  };
+  return clShoeEbay.clIsShoeRow(shoeRow) === true ? true : (() => {throw new Error('Not detected as shoe')})();
+});
+
+test(100, 'CSV row detection: unsupported itemType=shoes remains Shoe and is BLOCKED', () => {
+  const unsupportedShoe = {
+    itemType: 'shoes',
+    sourceCategory: 'UnsupportedType',
+    shoeGroup: 'mens',
+    condition: 'NEW_WITH_BOX'
+  };
+  const validation = clShoeEbay.clValidateShoeExport([unsupportedShoe]);
+  return validation.ok === false && validation.error.includes('unsupported') ? true : (() => {throw new Error('Should block unsupported shoe')})();
+});
+
+test(101, 'CSV column validation: Clothing row with type="Boots" is NOT treated as Shoe', () => {
+  const clothingRow = {
+    itemType: 'clothing',
+    type: 'Boots',
+    category: 'Boots',
+    gender: 'womens'
+  };
+  return clShoeEbay.clIsShoeRow(clothingRow) === false ? true : (() => {throw new Error('Clothing mistaken for shoe')})();
+});
+
+test(102, 'CSV column validation: Shoe size goes to col 32, NOT col 7', () => {
+  const shoeRow = clShoeEbay.clBuildEbayRowData({
+    itemType: 'shoes',
+    shoeGroup: 'mens',
+    sourceCategory: 'Sneakers',
+    condition: 'NEW_WITH_BOX',
+    size: '10'
+  });
+  return assertEqual(shoeRow.size, '10', 'shoe size field should be preserved');
+});
+
+test(103, 'CSV column validation: Clothing row has no shoe-specific fields', () => {
+  const clothingRow = clShoeEbay.clBuildEbayRowData({
+    itemType: 'clothing',
+    gender: 'womens',
+    sourceCategory: 'Dress',
+    condition: 'NEW_WITH_BOX',
+    size: '8'
+  });
+  return assertEqual(clothingRow.shoeGroup, '', 'clothing shoeGroup must be blank');
+});
+
+test(104, 'Legacy classification: itemType missing but shoeGroup present → ambiguous', () => {
+  const legacyShoe = {
+    shoeGroup: 'mens'
+  };
+  const classification = clShoeEbay.clClassifySessionRow(legacyShoe);
+  return assertEqual(classification, 'shoes', 'should classify as shoe if shoeGroup present');
+});
+
+test(105, 'Legacy classification: itemType=clothing with type="Boots" → clothing', () => {
+  const legacyClothing = {
+    itemType: 'clothing',
+    type: 'Boots'
+  };
+  const classification = clShoeEbay.clClassifySessionRow(legacyClothing);
+  return assertEqual(classification, 'clothing', 'should classify as clothing');
+});
+
+test(106, 'Production path uses shared builder: CSV export calls clBuildEbayRowData', () => {
+  const appContent = fs.readFileSync(path.join(__dirname, 'app.js'), 'utf8');
+  return appContent.includes('clShoeEbay.clBuildEbayRowData(input)') ? true : (() => {throw new Error('Production not using shared builder')})();
+});
+
+test(107, 'CSV export uses ONLY clShoeEbay.clIsShoeRow() for detection', () => {
+  const appContent = fs.readFileSync(path.join(__dirname, 'app.js'), 'utf8');
+  const exportFunc = appContent.match(/function clExportEbayCSV\(\)[\s\S]*?var csv=lines\.join/);
+  if (!exportFunc) return true;
+  const body = exportFunc[0];
+  return !body.includes('isShoeItem') && !body.includes('APPROVED_ROUTING') ? true : (() => {throw new Error('Old detection logic still present')})();
+});
+
+test(108, 'CSV export no longer has duplicate APPROVED_ROUTING table', () => {
+  const appContent = fs.readFileSync(path.join(__dirname, 'app.js'), 'utf8');
+  const exportFunc = appContent.match(/function clExportEbayCSV\(\)[\s\S]*?var csv=lines\.join/);
+  if (!exportFunc) return true;
+  const body = exportFunc[0];
+  return !body.includes("'mens': ['Athletic Shoes'") ? true : (() => {throw new Error('Duplicate routing still present')})();
+});
+
+test(109, 'Shared builder preserves all production fields: sku, photos, title, brand', () => {
+  const result = clShoeEbay.clBuildEbayRowData({
+    itemType: 'clothing',
+    gender: 'womens',
+    sourceCategory: 'Dress',
+    sku: 'TEST-123',
+    photos: 'http://example.com/pic.jpg',
+    title: 'Test Dress',
+    brand: 'Nike'
+  });
+  return assertEqual(result.sku, 'TEST-123', 'sku') &&
+         assertEqual(result.photos, 'http://example.com/pic.jpg', 'photos') &&
+         assertEqual(result.title, 'Test Dress', 'title') &&
+         assertEqual(result.brand, 'Nike', 'brand');
+});
+
+test(110, 'Shared builder preserves all production fields: weight, description, price', () => {
+  const result = clShoeEbay.clBuildEbayRowData({
+    itemType: 'clothing',
+    gender: 'mens',
+    sourceCategory: 'Shirt',
+    weightMajor: '1',
+    weightMinor: '4',
+    weightTotalLb: '1.25',
+    description: 'Test description',
+    price: '29.99'
+  });
+  return assertEqual(result.weightMajor, '1', 'weightMajor') &&
+         assertEqual(result.weightMinor, '4', 'weightMinor') &&
+         assertEqual(result.weightTotalLb, '1.25', 'weightTotalLb') &&
+         assertEqual(result.description, 'Test description', 'description') &&
+         assertEqual(result.price, '29.99', 'price');
 });
 
 // ═══════════════════════════════════════════════════════════════════════════

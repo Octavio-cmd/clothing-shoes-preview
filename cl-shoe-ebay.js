@@ -180,20 +180,34 @@ function clBuildEbayRowData(input) {
     sku: input.sku || '',
     photos: input.photos || '',
     title: input.title || '',
+    category: input.category || '',
+    categoryId: input.categoryId,
+    conditionId: input.conditionId,
+    aspects: input.aspects || {},
     brand: input.brand || '',
+    sizeType: input.sizeType || '',
     size: input.size || '',
+    department: input.department,
     color: input.color || '',
+    style: input.style || '',
+    inseam: input.inseam || '',
+    dressLength: input.dressLength || '',
+    outerMaterial: input.outerMaterial || '',
+    swimStyle: input.swimStyle || '',
+    activity: input.activity || '',
+    shoeWidth: input.shoeWidth || '',
     type: input.type || '',
     description: input.description || '',
     price: input.price || '',
     location: input.location || '',
-    categoryId: undefined,
-    conditionId: undefined,
-    department: undefined
+    warehouseLocation: input.warehouseLocation || '',
+    weightMajor: input.weightMajor === '' || input.weightMajor == null ? '' : input.weightMajor,
+    weightMinor: input.weightMinor === '' || input.weightMinor == null ? '' : input.weightMinor,
+    weightTotalLb: input.weightTotalLb || '',
+    weightLabel: input.weightLabel || ''
   };
 
   if (clIsShoeRow(row)) {
-    row.shoeGroup = row.shoeGroup || '';
     row.gender = '';
     row.categoryId = clGetShoeEbayCategoryIdFor(row);
     row.conditionId = clGetShoeConditionIdFor(row);
@@ -203,6 +217,17 @@ function clBuildEbayRowData(input) {
   }
 
   return row;
+}
+
+function clClassifySessionRow(row) {
+  if (!row) return 'ambiguous';
+  if (row.itemType === 'shoes') return 'shoes';
+  if (row.itemType === 'clothing') return 'clothing';
+  if (!row.itemType) {
+    if (row.shoeGroup) return 'shoes';
+    return 'ambiguous';
+  }
+  return 'ambiguous';
 }
 
 function clValidateShoeExport(session) {
@@ -251,7 +276,8 @@ var clShoeEbay = {
   clGetShoeEbayCategoryIdFor: clGetShoeEbayCategoryIdFor,
   clGetShoeConditionIdFor: clGetShoeConditionIdFor,
   clBuildEbayRowData: clBuildEbayRowData,
-  clValidateShoeExport: clValidateShoeExport
+  clValidateShoeExport: clValidateShoeExport,
+  clClassifySessionRow: clClassifySessionRow
 };
 
 if (typeof window !== 'undefined') {
