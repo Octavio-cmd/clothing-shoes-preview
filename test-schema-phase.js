@@ -1446,6 +1446,227 @@ test(181, 'CSV: Clothing row CSV generation unchanged', () => {
   return result.ok === true && typeof result.csv === 'string';
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// PHASE 2 UI/TAXONOMY HELPER TESTS (36 tests)
+// ═══════════════════════════════════════════════════════════════════════════
+
+test(182, 'UI: Mens shoe categories returned', () => {
+  var cats = clShoeEbay.clGetShoeAllowedCategories('mens');
+  return cats.length > 0 && cats.includes('Sneakers');
+});
+
+test(183, 'UI: Womens shoe categories returned', () => {
+  var cats = clShoeEbay.clGetShoeAllowedCategories('womens');
+  return cats.length > 0 && cats.includes('Sneakers');
+});
+
+test(184, 'UI: Unisex_kids ONLY Kids Sneakers & Kids Boots', () => {
+  var cats = clShoeEbay.clGetShoeAllowedCategories('unisex_kids');
+  return cats.length === 2 && cats.includes('Kids Sneakers') && cats.includes('Kids Boots');
+});
+
+test(185, 'UI: Baby returns empty (unsupported)', () => {
+  var cats = clShoeEbay.clGetShoeAllowedCategories('baby');
+  return cats.length === 0;
+});
+
+test(186, 'UI: Taxonomy for Mens Sneakers found', () => {
+  var tax = clShoeEbay.clGetShoeTaxonomyForSelection('mens', 'Sneakers');
+  return tax !== null && tax.id === '15709';
+});
+
+test(187, 'UI: Mens Sneaker sizes (no 1C)', () => {
+  var sizes = clShoeEbay.clGetShoeAllowedSizes('mens', 'Sneakers');
+  return sizes.length > 0 && sizes.includes('8.5') && !sizes.includes('1C');
+});
+
+test(188, 'UI: Boys Sneaker sizes correct range', () => {
+  var sizes = clShoeEbay.clGetShoeAllowedSizes('boys', 'Sneakers');
+  return sizes.length > 0 && sizes.includes('1') && !sizes.includes('4');
+});
+
+test(189, 'UI: Exact width values (no ambiguous labels)', () => {
+  var widths = clShoeEbay.clGetShoeAllowedWidths('mens', 'Sneakers');
+  return widths.length > 0 && widths.includes('Standard') && !widths.includes('Narrow (AA/A)');
+});
+
+test(190, 'UI: Shoe colors exact taxonomy', () => {
+  var colors = clShoeEbay.clGetShoeAllowedColors('mens', 'Sneakers');
+  return colors.length > 0 && colors.includes('Black') && colors.includes('Blue');
+});
+
+test(191, 'UI: Upper Material exact values', () => {
+  var materials = clShoeEbay.clGetShoeAllowedUpperMaterials('mens', 'Boots');
+  return materials.length > 0 && materials.includes('Leather') && materials.includes('Suede');
+});
+
+test(192, 'UI: Other category not offered', () => {
+  var cat = clShoeEbay.clGetShoeAllowedCategories('mens');
+  return !cat.includes('Other');
+});
+
+test(193, 'UI: No child sizes in mens shoes', () => {
+  var sizes = clShoeEbay.clGetShoeAllowedSizes('mens', 'Sneakers');
+  return !sizes.some(s => s === '1C' || s === '2C' || s === '1Y');
+});
+
+test(194, 'UI: Baby shoe sizes empty', () => {
+  var sizes = clShoeEbay.clGetShoeAllowedSizes('baby', 'Sneakers');
+  return sizes.length === 0;
+});
+
+test(195, 'UI: Womens Boots taxonomy', () => {
+  var tax = clShoeEbay.clGetShoeTaxonomyForSelection('womens', 'Boots');
+  return tax !== null && tax.id === '53557';
+});
+
+test(196, 'UI: Unisex Kids sizes', () => {
+  var sizes = clShoeEbay.clGetShoeAllowedSizes('unisex_kids', 'Kids Sneakers');
+  return sizes.length > 0 && sizes.includes('1');
+});
+
+test(197, 'PRESERVE: brandCustom empty when not custom', () => {
+  var row = {
+    itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers',
+    condition: 'NEW_WITH_BOX', conditionId: 1000, brand: 'Nike',
+    brandCustom: '', color: 'Black', colorCustom: '', size: '10.5',
+    shoeWidth: 'Standard', outerMaterial: 'Leather'
+  };
+  var resolved = clShoeEbay.clResolveShoeEbayAspects(row);
+  return resolved.ok && resolved.brandCustom === '';
+});
+
+test(198, 'PRESERVE: brandCustom when custom', () => {
+  var row = {
+    itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers',
+    condition: 'NEW_WITH_BOX', conditionId: 1000, brand: 'Other',
+    brandCustom: 'Nike Air', color: 'Black', colorCustom: '', size: '10.5',
+    shoeWidth: 'Standard', outerMaterial: 'Leather'
+  };
+  var resolved = clShoeEbay.clResolveShoeEbayAspects(row);
+  return resolved.ok && resolved.brandCustom === 'Nike Air';
+});
+
+test(199, 'PRESERVE: colorCustom when custom', () => {
+  var row = {
+    itemType: 'shoes', shoeGroup: 'womens', sourceCategory: 'Boots',
+    condition: 'NEW_WITH_BOX', conditionId: 1000, brand: 'Timberland',
+    brandCustom: '', color: 'Other', colorCustom: 'Burnt Orange', size: '8.5',
+    shoeWidth: 'Standard', outerMaterial: 'Leather'
+  };
+  var resolved = clShoeEbay.clResolveShoeEbayAspects(row);
+  return resolved.ok && resolved.colorCustom === 'Burnt Orange';
+});
+
+test(200, 'VALIDATION: Valid shoe with custom brand passes', () => {
+  var row = {
+    itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Casual',
+    condition: 'NEW_WITH_BOX', conditionId: 1000, brand: 'Other',
+    brandCustom: 'UnknownBrand', color: 'Black', colorCustom: '', size: '9.5',
+    shoeWidth: 'Standard', outerMaterial: 'Rubber'
+  };
+  var resolved = clShoeEbay.clResolveShoeEbayAspects(row);
+  return resolved.ok === true;
+});
+
+test(201, 'VALIDATION: Womens Heels with exact taxonomy passes', () => {
+  var row = {
+    itemType: 'shoes', shoeGroup: 'womens', sourceCategory: 'Heels',
+    condition: 'NEW_WITHOUT_BOX', conditionId: 1500, brand: 'Steve Madden',
+    brandCustom: '', color: 'Pink', colorCustom: '', size: '7',
+    shoeWidth: 'Standard', outerMaterial: 'Suede'
+  };
+  var resolved = clShoeEbay.clResolveShoeEbayAspects(row);
+  return resolved.ok === true;
+});
+
+test(202, 'VALIDATION: Boys shoe with exact widths passes', () => {
+  var row = {
+    itemType: 'shoes', shoeGroup: 'boys', sourceCategory: 'Sneakers',
+    condition: 'PREOWNED_GOOD', conditionId: 3000, brand: 'Adidas',
+    brandCustom: '', color: 'Blue', colorCustom: '', size: '5',
+    shoeWidth: 'B', outerMaterial: 'Mesh'
+  };
+  var resolved = clShoeEbay.clResolveShoeEbayAspects(row);
+  return resolved.ok === true;
+});
+
+test(203, 'UI: Slippers category exists', () => {
+  var sizes = clShoeEbay.clGetShoeAllowedSizes('mens', 'Slippers');
+  return sizes.length > 0;
+});
+
+test(204, 'UI: Womens Sandals have sizes', () => {
+  var sizes = clShoeEbay.clGetShoeAllowedSizes('womens', 'Sandals');
+  return sizes.length > 0;
+});
+
+test(205, 'UI: Unisex categories diverse', () => {
+  var cats = clShoeEbay.clGetShoeAllowedCategories('unisex');
+  return cats.length > 5;
+});
+
+test(206, 'UI: Baby widths empty', () => {
+  var widths = clShoeEbay.clGetShoeAllowedWidths('baby', 'Sneakers');
+  return widths.length === 0;
+});
+
+test(207, 'UI: Baby colors empty', () => {
+  var colors = clShoeEbay.clGetShoeAllowedColors('baby', 'Sneakers');
+  return colors.length === 0;
+});
+
+test(208, 'UI: Baby materials empty', () => {
+  var materials = clShoeEbay.clGetShoeAllowedUpperMaterials('baby', 'Sneakers');
+  return materials.length === 0;
+});
+
+test(209, 'UI: Womens Athletic materials exist', () => {
+  var materials = clShoeEbay.clGetShoeAllowedUpperMaterials('womens', 'Athletic Shoes');
+  return materials.length > 0;
+});
+
+test(210, 'UI: Mens Athletic materials exist', () => {
+  var materials = clShoeEbay.clGetShoeAllowedUpperMaterials('mens', 'Athletic Shoes');
+  return materials.length > 0;
+});
+
+test(211, 'UI: Womens Heels colors available', () => {
+  var colors = clShoeEbay.clGetShoeAllowedColors('womens', 'Heels');
+  return colors.length > 0 && colors.includes('Black');
+});
+
+test(212, 'UI: Unisex categories exist', () => {
+  var cats = clShoeEbay.clGetShoeAllowedCategories('unisex');
+  return cats.length > 0;
+});
+
+test(213, 'UI: Boots width values exact', () => {
+  var widths = clShoeEbay.clGetShoeAllowedWidths('mens', 'Boots');
+  return widths.length > 0 && widths.includes('A');
+});
+
+test(214, 'UI: Unisex Kids widths', () => {
+  var widths = clShoeEbay.clGetShoeAllowedWidths('unisex_kids', 'Kids Sneakers');
+  return widths.length > 0;
+});
+
+test(215, 'UI: Different categories for same shoe type', () => {
+  var tax1 = clShoeEbay.clGetShoeTaxonomyForSelection('mens', 'Sneakers');
+  var tax2 = clShoeEbay.clGetShoeTaxonomyForSelection('womens', 'Sneakers');
+  return tax1.id === '15709' && tax2.id === '95672';
+});
+
+test(216, 'UI: Mens shoe categories populated', () => {
+  var cats = clShoeEbay.clGetShoeAllowedCategories('mens');
+  return cats.length > 0;
+});
+
+test(217, 'UI: Girls shoe categories populated', () => {
+  var cats = clShoeEbay.clGetShoeAllowedCategories('girls');
+  return cats.length > 0;
+});
+
 console.log('\n' + '═'.repeat(70));
 console.log('SCHEMA PHASE COMPREHENSIVE TEST RESULTS');
 console.log('═'.repeat(70));

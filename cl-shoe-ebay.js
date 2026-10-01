@@ -582,6 +582,61 @@ function clBuildEbayCsvRow(row, hasShoes, config) {
   return { ok: true, csv: rowData.map(q).join(',') };
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// UI/Taxonomy Helper Functions (Decision #6, Phase 2)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function clGetShoeAllowedCategories(shoeGroup) {
+  // Return only the categories available for this shoe group
+  // Empty array if unsupported group
+  if (!shoeGroup) return [];
+  if (shoeGroup === 'baby') return []; // Baby unsupported
+  var routing = CL_SHOE_ROUTING[shoeGroup.toLowerCase().replace(/ /g, '_')];
+  if (!routing) return [];
+  // Return only the keys from the routing (the sourceCategory names)
+  return Object.keys(routing).filter(k => k !== 'Kids Sneakers' && k !== 'Kids Boots' || shoeGroup === 'unisex_kids');
+}
+
+function clGetShoeTaxonomyForSelection(shoeGroup, sourceCategory) {
+  // Get the eBay category ID and taxonomy for this selection
+  if (!shoeGroup || !sourceCategory) return null;
+  if (shoeGroup === 'baby') return null;
+  var routingKey = shoeGroup.toLowerCase().replace(/ /g, '_');
+  var routing = CL_SHOE_ROUTING[routingKey];
+  if (!routing) return null;
+  var categoryId = routing[sourceCategory];
+  if (!categoryId) return null;
+  return CL_SHOE_TAXONOMY[categoryId] || null;
+}
+
+function clGetShoeAllowedSizes(shoeGroup, sourceCategory) {
+  // Return exact taxonomy size values
+  var tax = clGetShoeTaxonomyForSelection(shoeGroup, sourceCategory);
+  if (!tax || !tax.aspects || !tax.aspects['US Shoe Size']) return [];
+  return tax.aspects['US Shoe Size'].values || [];
+}
+
+function clGetShoeAllowedWidths(shoeGroup, sourceCategory) {
+  // Return exact taxonomy width values
+  var tax = clGetShoeTaxonomyForSelection(shoeGroup, sourceCategory);
+  if (!tax || !tax.aspects || !tax.aspects['Shoe Width']) return [];
+  return tax.aspects['Shoe Width'].values || [];
+}
+
+function clGetShoeAllowedColors(shoeGroup, sourceCategory) {
+  // Return exact taxonomy color values
+  var tax = clGetShoeTaxonomyForSelection(shoeGroup, sourceCategory);
+  if (!tax || !tax.aspects || !tax.aspects.Color) return [];
+  return tax.aspects.Color.values || [];
+}
+
+function clGetShoeAllowedUpperMaterials(shoeGroup, sourceCategory) {
+  // Return exact taxonomy upper material values
+  var tax = clGetShoeTaxonomyForSelection(shoeGroup, sourceCategory);
+  if (!tax || !tax.aspects || !tax.aspects['Upper Material']) return [];
+  return tax.aspects['Upper Material'].values || [];
+}
+
 var clShoeEbay = {
   CL_SHOE_TAXONOMY: CL_SHOE_TAXONOMY,
   CL_SHOE_ROUTING: CL_SHOE_ROUTING,
@@ -598,7 +653,13 @@ var clShoeEbay = {
   clClassifySessionRow: clClassifySessionRow,
   clResolveShoeEbayAspects: clResolveShoeEbayAspects,
   clBuildEbayHeader: clBuildEbayHeader,
-  clBuildEbayCsvRow: clBuildEbayCsvRow
+  clBuildEbayCsvRow: clBuildEbayCsvRow,
+  clGetShoeAllowedCategories: clGetShoeAllowedCategories,
+  clGetShoeTaxonomyForSelection: clGetShoeTaxonomyForSelection,
+  clGetShoeAllowedSizes: clGetShoeAllowedSizes,
+  clGetShoeAllowedWidths: clGetShoeAllowedWidths,
+  clGetShoeAllowedColors: clGetShoeAllowedColors,
+  clGetShoeAllowedUpperMaterials: clGetShoeAllowedUpperMaterials
 };
 
 if (typeof window !== 'undefined') {

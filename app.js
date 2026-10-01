@@ -3002,7 +3002,28 @@ function clChangeGender(g) {
 
 function clChangeShoeGroup(sg) {
   cl.shoeGroup = sg;
-  if (cl.type === 'shoes' && !clSizeValidForType('shoes')) cl.size = '';
+  if (sg === 'baby') {
+    toast('⚠️ Baby shoes not yet supported');
+    cl.shoeGroup = '';
+    return;
+  }
+  // Clear options that may not be valid for new group
+  if (cl.type === 'shoes') {
+    cl.category = '';
+    cl.size = '';
+    cl.shoeWidth = '';
+    cl.color = '';
+    cl.outerMaterial = '';
+    // Refresh category chips
+    const catChips = document.getElementById('cat-chips');
+    if (catChips) {
+      var allowedCats = clShoeEbay.clGetShoeAllowedCategories(sg);
+      catChips.innerHTML = allowedCats.map(c=>`<button class="cl-chip" onclick="clSetCat('${c}')">${c}</button>`).join('');
+    }
+    clInitSizeWheel();
+    clRefreshShoeColorOptions();
+    clRefreshShoeWidthOptions();
+  }
 }
 
 function clBackToType() {
@@ -4289,12 +4310,45 @@ function clSetBrand(b) {
   clUpdateSKUDisplay();
 }
 
+function clRefreshShoeColorOptions() {
+  if (cl.type !== 'shoes' || !cl.shoeGroup) return;
+  var allowedColors = clShoeEbay.clGetShoeAllowedColors(cl.shoeGroup, cl.category);
+  var colorDiv = document.querySelector('.cl-colors');
+  if (colorDiv && allowedColors.length > 0) {
+    colorDiv.innerHTML = allowedColors.map(c=>`<button class="cl-color-chip" onclick="clSetColor('${c}')" style="--swatch:#888" title="${c}"><span class="cname">${c}</span></button>`).join('');
+    cl.color = '';
+  }
+}
+
+function clRefreshShoeWidthOptions() {
+  if (cl.type !== 'shoes' || !cl.shoeGroup) return;
+  var allowedWidths = clShoeEbay.clGetShoeAllowedWidths(cl.shoeGroup, cl.category);
+  var widthDiv = document.getElementById('shoewidth-chips');
+  if (widthDiv && allowedWidths.length > 0) {
+    widthDiv.innerHTML = allowedWidths.map(w=>`<button class="cl-chip cl-shoewidth-chip" data-v="${w}" onclick="clSetShoeWidth('${w}')">${w}</button>`).join('');
+    cl.shoeWidth = '';
+  }
+}
+
 function clSetCat(c) {
   // Initialize INSEAM listeners whenever category changes
   clInitInseamListeners();
   cl.category = c;
   cl._ebayTitle = null; cl._ebayDesc = null; // forzar regeneración del título
   document.querySelectorAll('#cat-chips .cl-chip').forEach(el => el.classList.toggle('sel', el.textContent===c));
+
+  // If shoes, refresh taxonomy-driven options
+  if (cl.type === 'shoes') {
+    cl.size = '';
+    cl.shoeWidth = '';
+    cl.color = '';
+    cl.outerMaterial = '';
+    clInitSizeWheel();
+    clRefreshShoeColorOptions();
+    clRefreshShoeWidthOptions();
+    return;
+  }
+
   // Inseam — Pants / Jeans / Shorts
   const needsInseam = ['Pants','Jeans','Shorts'].includes(c);
   const inseamSect = document.getElementById('inseam-sect');
@@ -5551,10 +5605,12 @@ function clBuildEbayRow(photoUrls) {
     conditionId: cl.itemType === 'shoes' ? undefined : (clGetConditionId ? clGetConditionId() : undefined),
     aspects: clBuildAspects(),
     brand: cl.brand || '',
+    brandCustom: cl.brandCustom || '',
     sizeType: clSizeType(),
     size: cl.size || '',
     department: dept,
     color: clCleanColor(cl.color),
+    colorCustom: cl.colorCustom || '',
     style: cl.style || '',
     inseam: cl.inseam || '',
     dressLength: cl.dressLength || '',
