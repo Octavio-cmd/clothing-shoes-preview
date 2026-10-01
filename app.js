@@ -4142,6 +4142,16 @@ function clRenderAttr() {
       <button class="ag-btn" onclick="clBackFromItemInfo()" style="flex:1">← Back</button>
       <button class="add-btn" onclick="clStep2Next()" style="flex:2;margin-bottom:0">Continue →</button>
     </div>`;
+
+  // Rehydrate size wheel after DOM rebuild
+  clInitSizeWheel();
+
+  // Rehydrate dynamic shoe controls after DOM rebuild
+  if (cl.type === 'shoes') {
+    clRefreshShoeColorOptions();
+    clRefreshShoeWidthOptions();
+    clRefreshShoeUpperMaterialOptions();
+  }
 }
 
 
