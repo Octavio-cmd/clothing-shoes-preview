@@ -5486,7 +5486,7 @@ function clInseamOptions() {
 
 function clDept() {
   if (cl.type === 'shoes') {
-    return clShoeEbay.clShoeDeptFor({shoeGroup: cl.shoeGroup}) || 'Unisex Adults';
+    return clShoeEbay.clShoeDeptFor({shoeGroup: cl.shoeGroup});
   }
   return cl.gender === 'mens'   ? 'Men'
        : cl.gender === 'womens' ? 'Women'
@@ -5555,8 +5555,8 @@ function clBuildEbayRow(photoUrls) {
     photos:     photoUrls || '',
     title:      title,
     category:   clBuildEbayCategory ? clBuildEbayCategory() : cl.category || '',
-    categoryId: cl.type === 'shoes' ? (clShoeEbay.clGetShoeEbayCategoryIdFor(tempRow) || '63861') : (clGetEbayCategoryId ? clGetEbayCategoryId() : '63861'),
-    conditionId:cl.type === 'shoes' ? (clShoeEbay.clGetShoeConditionIdFor(tempRow) || 1000) : (clGetConditionId ? clGetConditionId() : 1000),
+    categoryId: cl.type === 'shoes' ? clShoeEbay.clGetShoeEbayCategoryIdFor(tempRow) : (clGetEbayCategoryId ? clGetEbayCategoryId() : '63861'),
+    conditionId:cl.type === 'shoes' ? clShoeEbay.clGetShoeConditionIdFor(tempRow) : (clGetConditionId ? clGetConditionId() : 1000),
     aspects:    clBuildAspects(),
     brand:      cl.brand || '',
     sizeType:   clSizeType(),
@@ -5996,9 +5996,13 @@ function clExportEbayCSV() {
   }
 
   // ── SHOE EXPORT VALIDATION (Decision #6) ──────────────────────────────────
-  var hasShoes = clDetectShoeSession();
+  var hasShoes = sess.some(clShoeEbay.clIsShoeRow);
   if (hasShoes) {
-    if (!clValidateShoeExport(sess)) return;
+    var validation = clShoeEbay.clValidateShoeExport(sess);
+    if (!validation.ok) {
+      toast('⚠️ ' + validation.error);
+      return;
+    }
   }
 
   // Enviar también a la hoja de registro de Google Sheets (en paralelo, no bloquea)

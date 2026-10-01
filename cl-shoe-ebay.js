@@ -119,9 +119,11 @@ const CL_SHOE_ROUTING = {
     'Sneakers': 15709, 'Running': 15709, 'Athletic': 15709, 'Basketball': 15709,
     'Casual': 53548, 'Dress Shoes': 53120, 'Boots': 11498, 'Ankle Boots': 53557,
     'Sandals': 11504, 'Heels': 55793, 'Flats': 45333, 'Loafers': 24087, 'Slip-On': 24087,
-    'Clogs': 53548, 'Mules': 53548, 'Wedges': 55793, 'Platform': 95672, 'Kids Sneakers': 15709, 'Kids Boots': 155202
+    'Clogs': 53548, 'Mules': 53548, 'Wedges': 55793, 'Platform': 95672
+  },
+  'unisex_kids': {
+    'Kids Sneakers': 155202, 'Kids Boots': 155202
   }
-  // unisex_kids and baby deliberately unsupported until explicit approved evidence found
 };
 
 // ── Shoe Group → Department (eBay item specific) ─
@@ -168,19 +170,94 @@ function clGetShoeConditionIdFor(row) {
   return CL_SHOE_CONDITION_MAP[row.condition];
 }
 
+function clBuildEbayRowData(input) {
+  var row = {
+    itemType: input.itemType || '',
+    gender: input.gender || '',
+    shoeGroup: input.shoeGroup || '',
+    sourceCategory: input.sourceCategory || '',
+    condition: input.condition || '',
+    sku: input.sku || '',
+    photos: input.photos || '',
+    title: input.title || '',
+    brand: input.brand || '',
+    size: input.size || '',
+    color: input.color || '',
+    type: input.type || '',
+    description: input.description || '',
+    price: input.price || '',
+    location: input.location || '',
+    categoryId: undefined,
+    conditionId: undefined,
+    department: undefined
+  };
+
+  if (clIsShoeRow(row)) {
+    row.shoeGroup = row.shoeGroup || '';
+    row.gender = '';
+    row.categoryId = clGetShoeEbayCategoryIdFor(row);
+    row.conditionId = clGetShoeConditionIdFor(row);
+    row.department = clShoeDeptFor(row);
+  } else {
+    row.shoeGroup = '';
+  }
+
+  return row;
+}
+
+function clValidateShoeExport(session) {
+  for (var i = 0; i < session.length; i++) {
+    var row = session[i];
+
+    if (!row.itemType) {
+      return { ok: false, error: 'Row '+(i+1)+': legacy row without itemType. Please re-scan or recreate.' };
+    }
+
+    if (!clIsShoeRow(row)) continue;
+
+    if (!row.shoeGroup) {
+      return { ok: false, error: 'Row '+(i+1)+': missing shoeGroup' };
+    }
+    if (!row.sourceCategory) {
+      return { ok: false, error: 'Row '+(i+1)+': missing sourceCategory' };
+    }
+    if (!row.condition) {
+      return { ok: false, error: 'Row '+(i+1)+': missing condition' };
+    }
+    if (row.categoryId === undefined) {
+      return { ok: false, error: 'Row '+(i+1)+': unsupported shoe category ('+row.sourceCategory+')' };
+    }
+    if (row.conditionId === undefined) {
+      return { ok: false, error: 'Row '+(i+1)+': unsupported shoe condition ('+row.condition+')' };
+    }
+    if (row.department === undefined) {
+      return { ok: false, error: 'Row '+(i+1)+': invalid shoe group ('+row.shoeGroup+')' };
+    }
+  }
+  return { ok: true };
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
-// Module Exports (for Node.js / testing)
+// Public API (same for browser and Node.js)
 // ═══════════════════════════════════════════════════════════════════════════
 
+var clShoeEbay = {
+  CL_SHOE_TAXONOMY: CL_SHOE_TAXONOMY,
+  CL_SHOE_ROUTING: CL_SHOE_ROUTING,
+  CL_SHOE_DEPT_MAP: CL_SHOE_DEPT_MAP,
+  CL_SHOE_CONDITION_MAP: CL_SHOE_CONDITION_MAP,
+  clIsShoeRow: clIsShoeRow,
+  clShoeDeptFor: clShoeDeptFor,
+  clGetShoeEbayCategoryIdFor: clGetShoeEbayCategoryIdFor,
+  clGetShoeConditionIdFor: clGetShoeConditionIdFor,
+  clBuildEbayRowData: clBuildEbayRowData,
+  clValidateShoeExport: clValidateShoeExport
+};
+
+if (typeof window !== 'undefined') {
+  window.clShoeEbay = clShoeEbay;
+}
+
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = {
-    CL_SHOE_TAXONOMY: CL_SHOE_TAXONOMY,
-    CL_SHOE_ROUTING: CL_SHOE_ROUTING,
-    CL_SHOE_DEPT_MAP: CL_SHOE_DEPT_MAP,
-    CL_SHOE_CONDITION_MAP: CL_SHOE_CONDITION_MAP,
-    clIsShoeRow: clIsShoeRow,
-    clShoeDeptFor: clShoeDeptFor,
-    clGetShoeEbayCategoryIdFor: clGetShoeEbayCategoryIdFor,
-    clGetShoeConditionIdFor: clGetShoeConditionIdFor
-  };
+  module.exports = clShoeEbay;
 }

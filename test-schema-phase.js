@@ -547,6 +547,114 @@ test(80, 'Pure functions have no side effects', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// TESTS 81-95: Integration & Source Verification
+// ═══════════════════════════════════════════════════════════════════════════
+
+console.log('\n═══ TESTS 81-95: Integration & Source Verification ═══\n');
+
+test(81, 'cl-shoe-ebay.js module exports exist', () => {
+  return assertEqual(typeof clShoeEbay, 'object', 'clShoeEbay should be object');
+});
+
+test(82, 'Browser namespace clShoeEbay would be exported', () => {
+  const fileContent = fs.readFileSync(path.join(__dirname, 'cl-shoe-ebay.js'), 'utf8');
+  return fileContent.includes('window.clShoeEbay = clShoeEbay') ? true : (() => {throw new Error('window.clShoeEbay export missing')})();
+});
+
+test(83, 'clBuildEbayRowData is exported', () => {
+  return assertEqual(typeof clShoeEbay.clBuildEbayRowData, 'function', 'clBuildEbayRowData should be function');
+});
+
+test(84, 'clValidateShoeExport is exported', () => {
+  return assertEqual(typeof clShoeEbay.clValidateShoeExport, 'function', 'clValidateShoeExport should be function');
+});
+
+test(85, 'index.html loads cl-shoe-ebay.js before app.js', () => {
+  const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+  const shoeIdx = html.indexOf('<script src="cl-shoe-ebay.js">');
+  const appIdx = html.indexOf('<script src="app.js');
+  return (shoeIdx > 0 && appIdx > 0 && shoeIdx < appIdx) ? true : (() => {throw new Error('Script load order wrong')})();
+});
+
+test(86, 'app.js does NOT define duplicate CL_SHOE_ROUTING', () => {
+  const appContent = fs.readFileSync(path.join(__dirname, 'app.js'), 'utf8');
+  var count = 0;
+  var idx = 0;
+  while ((idx = appContent.indexOf('CL_SHOE_ROUTING', idx)) !== -1) {
+    if (appContent.substring(idx-20, idx).includes('const ') ||
+        appContent.substring(idx-20, idx).includes('var ')) count++;
+    idx += 1;
+  }
+  return assertEqual(count, 0, 'app.js should not define CL_SHOE_ROUTING');
+});
+
+test(87, 'app.js does NOT define duplicate clIsShoeRow', () => {
+  const appContent = fs.readFileSync(path.join(__dirname, 'app.js'), 'utf8');
+  return appContent.match(/function clIsShoeRow/) ? false : true;
+});
+
+test(88, 'clDept() does NOT have fallback || "Unisex Adults"', () => {
+  const appContent = fs.readFileSync(path.join(__dirname, 'app.js'), 'utf8');
+  const clDeptMatch = appContent.match(/function clDept\(\)[\s\S]*?return.*?clShoeDeptFor[\s\S]*?\)/);
+  if (!clDeptMatch) return true;
+  const deptBody = clDeptMatch[0];
+  return !deptBody.includes('|| \'Unisex Adults\'') || !deptBody.match(/clShoeDeptFor.*?\|\|/) ? true : (() => {throw new Error('clDept has forbidden fallback')})();
+});
+
+test(89, 'clBuildEbayRow() does NOT have || "63861" fallback for shoes', () => {
+  const appContent = fs.readFileSync(path.join(__dirname, 'app.js'), 'utf8');
+  const builderMatch = appContent.match(/function clBuildEbayRow[\s\S]*?categoryId:[\s\S]*?\n/);
+  if (!builderMatch) return true;
+  const line = builderMatch[0];
+  return !line.match(/shoes.*\|\|.*63861/) && !line.match(/shoes.*\|\|.*1000/) ? true : (() => {throw new Error('clBuildEbayRow has forbidden fallbacks')})();
+});
+
+test(90, 'clBuildEbayRow() calls clShoeEbay.clGetShoeEbayCategoryIdFor', () => {
+  const appContent = fs.readFileSync(path.join(__dirname, 'app.js'), 'utf8');
+  return appContent.includes('clShoeEbay.clGetShoeEbayCategoryIdFor') ? true : (() => {throw new Error('Not using shared category function')})();
+});
+
+test(91, 'clBuildEbayRow() calls clShoeEbay.clGetShoeConditionIdFor', () => {
+  const appContent = fs.readFileSync(path.join(__dirname, 'app.js'), 'utf8');
+  return appContent.includes('clShoeEbay.clGetShoeConditionIdFor') ? true : (() => {throw new Error('Not using shared condition function')})();
+});
+
+test(92, 'unisex_kids routing ONLY has Kids Sneakers and Kids Boots', () => {
+  const kids = clShoeEbay.CL_SHOE_ROUTING.unisex_kids;
+  const keys = Object.keys(kids);
+  return assertEqual(keys.length, 2, 'unisex_kids should have exactly 2 entries') &&
+         (kids['Kids Sneakers'] === 155202 ? true : (() => {throw new Error('Kids Sneakers not 155202')})()) &&
+         (kids['Kids Boots'] === 155202 ? true : (() => {throw new Error('Kids Boots not 155202')})());
+});
+
+test(93, 'unisex adult routing does NOT include category 155202 (kids)', () => {
+  const adult = clShoeEbay.CL_SHOE_ROUTING.unisex;
+  return Object.values(adult).includes(155202) ? (() => {throw new Error('unisex includes kids category 155202')})() : true;
+});
+
+test(94, 'unisex adult routing does NOT include boys (57929) or girls (57974)', () => {
+  const adult = clShoeEbay.CL_SHOE_ROUTING.unisex;
+  const vals = Object.values(adult);
+  return vals.includes(57929) || vals.includes(57974) ? (() => {throw new Error('unisex includes kids categories')})() : true;
+});
+
+test(95, 'clBuildEbayRowData pure function accepts input with all fields', () => {
+  const result = clShoeEbay.clBuildEbayRowData({
+    itemType: 'shoes',
+    shoeGroup: 'mens',
+    sourceCategory: 'Sneakers',
+    condition: 'NEW_WITH_BOX',
+    sku: 'TEST-001',
+    title: 'Test Shoe',
+    brand: 'Nike'
+  });
+  return assertEqual(result.itemType, 'shoes', 'output itemType') &&
+         assertEqual(result.categoryId, 15709, 'output categoryId') &&
+         assertEqual(result.conditionId, 1000, 'output conditionId') &&
+         assertEqual(result.department, 'Men', 'output department');
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 // SUMMARY
 // ═══════════════════════════════════════════════════════════════════════════
 
