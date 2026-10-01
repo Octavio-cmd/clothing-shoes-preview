@@ -2889,7 +2889,7 @@ function screen(n) {
 
 // ── State ───────────────────────────────────────────────────
 let cl = {
-  sku:'', type:'clothing', gender:'unisex', brand:'', brandCustom:'', category:'', size:'L',
+  sku:'', type:'clothing', gender:'unisex', shoeGroup:'', brand:'', brandCustom:'', category:'', size:'L',
   color:'', colorCustom:'', condition:'', defects:[], notes:'',
   weightLb:'', weightOz:'',
   photos:{ front:null, back:null, tag:null, detail:null, meas1:null, meas2:null },
@@ -2904,6 +2904,16 @@ const CL_GENDER_OPTIONS = [
   { id:'womens', label:"Women's", icon:'👗' },
   { id:'kids',   label:'Kids',    icon:'👶' },
   { id:'unisex', label:'Unisex',  icon:'🌍' },
+];
+
+const CL_SHOE_GROUP_OPTIONS = [
+  { id:'mens',        label:"Men's",       icon:'👔' },
+  { id:'womens',      label:"Women's",     icon:'👗' },
+  { id:'boys',        label:'Boys',        icon:'👦' },
+  { id:'girls',       label:'Girls',       icon:'👧' },
+  { id:'unisex_kids', label:'Unisex Kids', icon:'👶' },
+  { id:'baby',        label:'Baby',        icon:'👶' },
+  { id:'unisex',      label:'Unisex Adults', icon:'🌍' },
 ];
 
 const CL_TYPE_OPTIONS = [
@@ -2971,6 +2981,7 @@ function clDropIncompatibleTypeState(type) {
   if (cl.category && !cats.includes(cl.category)) cl.category = '';
   Object.keys(CL_CAT_EXTRAS).forEach(k => { if (cl[k] && !CL_CAT_EXTRAS[k].includes(cl.category)) cl[k] = ''; });
   if (type !== 'shoes' && cl.shoeWidth) cl.shoeWidth = '';
+  if (type !== 'shoes') cl.shoeGroup = '';
   if (!clSizeValidForType(type)) cl.size = '';
   const defs = type === 'shoes' ? CL_SHOE_DEFECTS : CL_DEFECTS;
   if (Array.isArray(cl.defects)) cl.defects = cl.defects.filter(d => defs.includes(d));
@@ -2985,6 +2996,11 @@ function clChangeType(type) {
 
 function clChangeGender(g) {
   cl.gender = g;
+  if (cl.type === 'shoes' && !clSizeValidForType('shoes')) cl.size = '';
+}
+
+function clChangeShoeGroup(sg) {
+  cl.shoeGroup = sg;
   if (cl.type === 'shoes' && !clSizeValidForType('shoes')) cl.size = '';
 }
 
@@ -3331,12 +3347,18 @@ function clRenderSKU() {
     </div>
 
     <div class="cl-sect" style="margin-top:12px">
-      <div class="lbl">GENDER</div>
+      <div class="lbl">${cl.type === 'shoes' ? 'SHOE GROUP' : 'GENDER'}</div>
       <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-        ${CL_GENDER_OPTIONS.map(g=>`<button class="cl-cond-btn${cl.gender===g.id?' sel':''}" data-cl-gender="${g.id}" onclick="clChangeGender('${g.id}');this.closest('div').querySelectorAll('button').forEach(b=>b.classList.remove('sel'));this.classList.add('sel')" style="flex:1;min-width:60px;padding:14px 8px">
-          <div style="font-size:22px;margin-bottom:4px">${g.icon}</div>
-          <div class="cond-lbl" style="font-size:12px">${g.label}</div>
-        </button>`).join('')}
+        ${cl.type === 'shoes'
+          ? CL_SHOE_GROUP_OPTIONS.map(sg=>`<button class="cl-cond-btn${cl.shoeGroup===sg.id?' sel':''}" data-cl-shoe-group="${sg.id}" onclick="clChangeShoeGroup('${sg.id}');this.closest('div').querySelectorAll('button').forEach(b=>b.classList.remove('sel'));this.classList.add('sel')" style="flex:1;min-width:60px;padding:14px 8px">
+              <div style="font-size:22px;margin-bottom:4px">${sg.icon}</div>
+              <div class="cond-lbl" style="font-size:12px">${sg.label}</div>
+            </button>`).join('')
+          : CL_GENDER_OPTIONS.map(g=>`<button class="cl-cond-btn${cl.gender===g.id?' sel':''}" data-cl-gender="${g.id}" onclick="clChangeGender('${g.id}');this.closest('div').querySelectorAll('button').forEach(b=>b.classList.remove('sel'));this.classList.add('sel')" style="flex:1;min-width:60px;padding:14px 8px">
+              <div style="font-size:22px;margin-bottom:4px">${g.icon}</div>
+              <div class="cond-lbl" style="font-size:12px">${g.label}</div>
+            </button>`).join('')
+        }
       </div>
     </div>
     <button class="add-btn" onclick="clStep1Next()">Continue →</button>`;
@@ -5494,6 +5516,14 @@ function clBuildEbayRow(photoUrls) {
   const dept  = clDept();
   const priceEl = document.getElementById('cl-price-input');
   return {
+    // ── DECISION #6: Item classification fields ──────────────────────
+    itemType:       cl.type,                           // 'clothing' or 'shoes'
+    gender:         cl.gender,                         // Clothing gender: 'mens', 'womens', 'kids', 'unisex'
+    shoeGroup:      cl.type === 'shoes' ? cl.shoeGroup : '', // Shoes group: 'mens', 'womens', 'boys', 'girls', 'unisex_kids', 'baby', 'unisex'
+    sourceCategory: cl.category,                       // Internal category name (used as shoeType for shoes)
+    condition:      cl.condition,                      // Internal condition code
+
+    // ── Existing fields (preserved for backward compatibility) ────────
     sku:        cl.sku || '',
     photos:     photoUrls || '',
     title:      title,
