@@ -3968,7 +3968,7 @@ function clRenderAttr() {
     <div class="cl-sect">
       <div class="lbl">CATEGORY</div>
       <div class="cl-chips" id="cat-chips">
-        ${(cl.type==='shoes'?CL_SHOE_CATS:CL_CATS).map(c=>`<button class="cl-chip${cl.category===c?' sel':''}" onclick="clSetCat('${c}')">${c}</button>`).join('')}
+        ${(cl.type==='shoes'?clShoeEbay.clGetShoeAllowedCategories(cl.shoeGroup):CL_CATS).map(c=>`<button class="cl-chip${cl.category===c?' sel':''}" onclick="clSetCat('${c}')">${c}</button>`).join('')}
       </div>
     </div>
 
@@ -4020,9 +4020,12 @@ function clRenderAttr() {
     <div class="cl-sect" id="shoewidth-sect" style="display:${cl.type==='shoes'?'block':'none'}">
       <div class="lbl">SHOE WIDTH</div>
       <div class="cl-chips" id="shoewidth-chips">
-        ${['Narrow (AA/A)','Regular (B/M)','Wide (D/W)','Extra Wide (EE/2E)','Extra Wide (EEE/3E)','Not Specified'].map(v=>
-          '<button class="cl-chip cl-shoewidth-chip' + ((cl.shoeWidth||'')==='v'?' sel':'') + '" data-v="' + v + '" onclick="clSetShoeWidth(\'' + v + '\')">' + v + '</button>'
-        ).join('')}
+        ${(()=>{
+          if(!cl.shoeGroup||!cl.category)return'';
+          var allowed=clShoeEbay.clGetShoeAllowedWidths(cl.shoeGroup,cl.category);
+          if(allowed.length===0)return'';
+          return allowed.map(v=>'<button class="cl-chip cl-shoewidth-chip'+(cl.shoeWidth===v?' sel':'')+'" data-v="'+v+'" onclick="clSetShoeWidth(\''+v+'\')">'+(v||'Not Specified')+'</button>').join('');
+        })()}
       </div>
     </div>
 
@@ -4045,18 +4048,34 @@ function clRenderAttr() {
     <div class="cl-sect">
       <div class="lbl">COLOR</div>
       <div class="cl-colors">
-        ${CL_COLORS.map(c=>`<button class="cl-color-chip${cl.color===c.name?' sel':''}" onclick="clSetColor('${c.name}')" style="--swatch:${c.hex}" title="${c.name}">
-          <span class="swatch"></span><span class="cname">${c.name}</span>
-        </button>`).join('')}
+        ${(()=>{
+          if(cl.type==='shoes'&&cl.shoeGroup&&cl.category){
+            var allowed=clShoeEbay.clGetShoeAllowedColors(cl.shoeGroup,cl.category);
+            return allowed.map(c=>'<button class="cl-color-chip'+(cl.color===c?' sel':'')+'" onclick="clSetColor(\''+c+'\')" style="--swatch:#888" title="'+c+'"><span class="cname">'+c+'</span></button>').join('')+'<button class="cl-color-chip'+(cl.color==='Other'?' sel':'')+'" onclick="clSetColor(\'Other\')" style="--swatch:#888" title="Other"><span class="cname">Other</span></button>';
+          }else{
+            return CL_COLORS.map(c=>'<button class="cl-color-chip'+(cl.color===c.name?' sel':'')+'" onclick="clSetColor(\''+c.name+'\')" style="--swatch:'+c.hex+'" title="'+c.name+'"><span class="swatch"></span><span class="cname">'+c.name+'</span></button>').join('');
+          }
+        })()}
       </div>
       <input id="color-custom-in" class="ui" type="text" placeholder="Custom color..." style="display:${cl.color==='Other'?'block':'none'};width:100%;margin-top:8px" value="${cl.colorCustom}" oninput="cl.colorCustom=this.value">
     </div>
 
-    <div class="cl-sect">
-    <div class="cl-sect">
+    <div class="cl-sect" id="style-sect" style="display:${cl.type==='shoes'?'none':'block'}">
       <div class="lbl">STYLE</div>
       <div class="cl-chips" id="style-chips">
         ${CL_STYLES.map(s=>`<button class="cl-chip cl-style-chip${cl.style===s?' sel':''}" data-s="${s}" onclick="clSetStyle('${s}')">${s}</button>`).join('')}
+      </div>
+    </div>
+
+    <div class="cl-sect" id="uppermaterial-sect" style="display:${cl.type==='shoes'&&cl.shoeGroup&&cl.category?'block':'none'}">
+      <div class="lbl">UPPER MATERIAL</div>
+      <div class="cl-chips" id="uppermaterial-chips">
+        ${(()=>{
+          if(!cl.shoeGroup||!cl.category)return'';
+          var allowed=clShoeEbay.clGetShoeAllowedUpperMaterials(cl.shoeGroup,cl.category);
+          if(allowed.length===0)return'';
+          return allowed.map(m=>'<button class="cl-chip'+(cl.outerMaterial===m?' sel':'')+'" onclick="clSetOuterMaterial(\''+m+'\')"'+('title="'+m+'"')+'>'+(m||'Not Specified')+'</button>').join('');
+        })()}
       </div>
     </div>
 
@@ -4237,7 +4256,7 @@ function playTick() {
 // ── SIZE WHEEL DRUM ROLL ──────────────────────────────────────
 function clInitSizeWheel() {
   const ALL_SIZES = cl.type==='shoes'
-    ? ((cl.shoeGroup==='unisex_kids' || cl.shoeGroup==='baby') || (cl.category && cl.category.toLowerCase().includes('kids'))?CL_SHOE_SIZES_KIDS:CL_SHOE_SIZES_US).concat(['Custom'])
+    ? (cl.shoeGroup && cl.category ? clShoeEbay.clGetShoeAllowedSizes(cl.shoeGroup, cl.category).concat(['Custom']) : ['Custom'])
     : [
     'XS','S','M','L','XL','XXL','1X','1XB','3XL','4XL',
     'XLT','2XB','2XLT','3XB','3XLT','4XB','4XLT',
@@ -4601,7 +4620,45 @@ function clStep2Next() {
   if (needsInseam && (!cl.inseam || cl.inseam === '')) {
     toast('⚠️ Ingresa el Inseam'); return;
   }
-  
+
+  // ✅ SHOES: Validate taxonomy-driven fields
+  if (cl.type === 'shoes' && cl.shoeGroup && cl.category) {
+    var shoeTax = clShoeEbay.clGetShoeTaxonomyForSelection(cl.shoeGroup, cl.category);
+    if (!shoeTax) { toast('⚠️ Invalid shoe selection'); return; }
+
+    // Size must be from taxonomy
+    var allowedSizes = clShoeEbay.clGetShoeAllowedSizes(cl.shoeGroup, cl.category);
+    if (!cl.size || cl.size === 'Custom' || !allowedSizes.includes(cl.size)) {
+      if (cl.size === 'Custom') {
+        // Custom size allowed, already captured
+      } else {
+        toast('⚠️ Invalid shoe size'); return;
+      }
+    }
+
+    // Color must be from taxonomy or "Other"
+    var allowedColors = clShoeEbay.clGetShoeAllowedColors(cl.shoeGroup, cl.category);
+    if (!cl.color || (!allowedColors.includes(cl.color) && cl.color !== 'Other')) {
+      toast('⚠️ Invalid shoe color'); return;
+    }
+
+    // Width is optional
+    if (cl.shoeWidth) {
+      var allowedWidths = clShoeEbay.clGetShoeAllowedWidths(cl.shoeGroup, cl.category);
+      if (allowedWidths.length > 0 && !allowedWidths.includes(cl.shoeWidth)) {
+        toast('⚠️ Invalid shoe width'); return;
+      }
+    }
+
+    // Upper Material - check if required and validate
+    var allowedMaterials = clShoeEbay.clGetShoeAllowedUpperMaterials(cl.shoeGroup, cl.category);
+    if (allowedMaterials.length > 0 && shoeTax.aspects['Upper Material']?.required) {
+      if (!cl.outerMaterial || !allowedMaterials.includes(cl.outerMaterial)) {
+        toast('⚠️ Upper Material is required'); return;
+      }
+    }
+  }
+
   if (cl.brand === 'Other') cl.brand = cl.brandCustom || 'Other';
   if (cl.color === 'Other') cl.color = cl.colorCustom || 'Other';
   // size kept live in cl.size via wheel
