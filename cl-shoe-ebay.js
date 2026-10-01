@@ -587,14 +587,15 @@ function clBuildEbayCsvRow(row, hasShoes, config) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function clGetShoeAllowedCategories(shoeGroup) {
-  // Return only the categories available for this shoe group
+  // Return exact routing keys for this shoe group
   // Empty array if unsupported group
   if (!shoeGroup) return [];
   if (shoeGroup === 'baby') return []; // Baby unsupported
-  var routing = CL_SHOE_ROUTING[shoeGroup.toLowerCase().replace(/ /g, '_')];
+  var routingKey = shoeGroup.toLowerCase().replace(/ /g, '_');
+  var routing = CL_SHOE_ROUTING[routingKey];
   if (!routing) return [];
-  // Return only the keys from the routing (the sourceCategory names)
-  return Object.keys(routing).filter(k => k !== 'Kids Sneakers' && k !== 'Kids Boots' || shoeGroup === 'unisex_kids');
+  // Return exact Object.keys from the routing table
+  return Object.keys(routing);
 }
 
 function clGetShoeTaxonomyForSelection(shoeGroup, sourceCategory) {
@@ -637,6 +638,72 @@ function clGetShoeAllowedUpperMaterials(shoeGroup, sourceCategory) {
   return tax.aspects['Upper Material'].values || [];
 }
 
+// ─ Activity Derivation (deterministic mapping from sourceCategory)
+const CL_SHOE_SOURCE_TO_ACTIVITY = {
+  'Running': 'Running & Jogging',
+  'Basketball': 'Basketball'
+};
+
+function clGetDerivedShoeActivity(sourceCategory) {
+  // Return derived activity if sourceCategory maps deterministically
+  return CL_SHOE_SOURCE_TO_ACTIVITY[sourceCategory] || null;
+}
+
+// ─ Early validation helper for shoe Item Info (Step 2)
+function clValidateShoeItemInfo(input) {
+  // Validate shoe fields available at Item Info stage
+  // Returns { ok: true } or { ok: false, error: string }
+  if (!input.shoeGroup) return { ok: false, error: 'shoeGroup required' };
+  if (!input.category) return { ok: false, error: 'category required' };
+  if (input.shoeGroup === 'baby') return { ok: false, error: 'Baby shoes unsupported' };
+
+  var tax = clGetShoeTaxonomyForSelection(input.shoeGroup, input.category);
+  if (!tax) return { ok: false, error: 'Invalid shoe selection' };
+
+  // Size validation: exact membership in taxonomy
+  var allowedSizes = clGetShoeAllowedSizes(input.shoeGroup, input.category);
+  if (!input.size || !allowedSizes.includes(input.size)) {
+    return { ok: false, error: 'Invalid or missing shoe size' };
+  }
+
+  // Color validation: exact membership or Other with custom
+  var allowedColors = clGetShoeAllowedColors(input.shoeGroup, input.category);
+  if (!input.color) {
+    return { ok: false, error: 'Color required' };
+  }
+  if (input.color === 'Other') {
+    if (!input.colorCustom || !input.colorCustom.trim()) {
+      return { ok: false, error: 'Custom color required' };
+    }
+    if (!allowedColors.includes(input.colorCustom)) {
+      return { ok: false, error: 'Custom color not in taxonomy' };
+    }
+  } else if (!allowedColors.includes(input.color)) {
+    return { ok: false, error: 'Color not in taxonomy' };
+  }
+
+  // Width validation: optional but if provided must be in taxonomy
+  if (input.shoeWidth) {
+    var allowedWidths = clGetShoeAllowedWidths(input.shoeGroup, input.category);
+    if (allowedWidths.length > 0 && !allowedWidths.includes(input.shoeWidth)) {
+      return { ok: false, error: 'Invalid shoe width' };
+    }
+  }
+
+  // Upper Material validation: required if so in taxonomy
+  var allowedMaterials = clGetShoeAllowedUpperMaterials(input.shoeGroup, input.category);
+  var matAspect = tax.aspects['Upper Material'];
+  if (matAspect && matAspect.required) {
+    if (!input.outerMaterial || !allowedMaterials.includes(input.outerMaterial)) {
+      return { ok: false, error: 'Upper Material required' };
+    }
+  } else if (input.outerMaterial && allowedMaterials.length > 0 && !allowedMaterials.includes(input.outerMaterial)) {
+    return { ok: false, error: 'Invalid Upper Material' };
+  }
+
+  return { ok: true };
+}
+
 var clShoeEbay = {
   CL_SHOE_TAXONOMY: CL_SHOE_TAXONOMY,
   CL_SHOE_ROUTING: CL_SHOE_ROUTING,
@@ -659,7 +726,11 @@ var clShoeEbay = {
   clGetShoeAllowedSizes: clGetShoeAllowedSizes,
   clGetShoeAllowedWidths: clGetShoeAllowedWidths,
   clGetShoeAllowedColors: clGetShoeAllowedColors,
-  clGetShoeAllowedUpperMaterials: clGetShoeAllowedUpperMaterials
+  clGetShoeAllowedUpperMaterials: clGetShoeAllowedUpperMaterials,
+  CL_SHOE_SOURCE_TO_ACTIVITY: CL_SHOE_SOURCE_TO_ACTIVITY,
+  clGetDerivedShoeActivity: clGetDerivedShoeActivity,
+  clValidateShoeItemInfo: clValidateShoeItemInfo,
+  CL_SHOE_ROUTING: CL_SHOE_ROUTING
 };
 
 if (typeof window !== 'undefined') {

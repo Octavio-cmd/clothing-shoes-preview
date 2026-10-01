@@ -3013,6 +3013,7 @@ function clChangeShoeGroup(sg) {
     cl.size = '';
     cl.shoeWidth = '';
     cl.color = '';
+    cl.colorCustom = '';
     cl.outerMaterial = '';
     // Refresh category chips
     const catChips = document.getElementById('cat-chips');
@@ -3023,6 +3024,7 @@ function clChangeShoeGroup(sg) {
     clInitSizeWheel();
     clRefreshShoeColorOptions();
     clRefreshShoeWidthOptions();
+    clRefreshShoeUpperMaterialOptions();
   }
 }
 
@@ -4256,7 +4258,7 @@ function playTick() {
 // ── SIZE WHEEL DRUM ROLL ──────────────────────────────────────
 function clInitSizeWheel() {
   const ALL_SIZES = cl.type==='shoes'
-    ? (cl.shoeGroup && cl.category ? clShoeEbay.clGetShoeAllowedSizes(cl.shoeGroup, cl.category).concat(['Custom']) : ['Custom'])
+    ? (cl.shoeGroup && cl.category ? clShoeEbay.clGetShoeAllowedSizes(cl.shoeGroup, cl.category) : [])
     : [
     'XS','S','M','L','XL','XXL','1X','1XB','3XL','4XL',
     'XLT','2XB','2XLT','3XB','3XLT','4XB','4XLT',
@@ -4269,7 +4271,7 @@ function clInitSizeWheel() {
   const list = document.getElementById('wheel-list');
   const display = document.getElementById('size-display');
   if (!list) return;
-  if (!ALL_SIZES.includes(cl.size)) cl.size = 'L';
+  if (!ALL_SIZES.includes(cl.size)) cl.size = (cl.type==='shoes' ? '' : 'L');
   let currentIdx = ALL_SIZES.indexOf(cl.size);
 
   // Build items
@@ -4283,39 +4285,48 @@ function clInitSizeWheel() {
     Array(PAD).fill(spacer).join('');
 
   // Scroll to default WITHOUT animation
-  list.scrollTop = currentIdx * ITEM_H;
-  if (display) display.textContent = ALL_SIZES[currentIdx];
+  if (ALL_SIZES.length > 0) {
+    list.scrollTop = currentIdx * ITEM_H;
+    if (display) display.textContent = ALL_SIZES[currentIdx];
+  } else {
+    list.scrollTop = 0;
+    if (display) display.textContent = '—';
+  }
 
   // Update selection on every scroll tick — no timer needed
-  list.addEventListener('scroll', function() {
-    const raw = list.scrollTop / ITEM_H;
-    const idx = Math.round(raw);
-    const clamped = Math.max(0, Math.min(ALL_SIZES.length - 1, idx));
+  if (ALL_SIZES.length > 0) {
+    list.addEventListener('scroll', function() {
+      const raw = list.scrollTop / ITEM_H;
+      const idx = Math.round(raw);
+      const clamped = Math.max(0, Math.min(ALL_SIZES.length - 1, idx));
 
-    if (clamped !== currentIdx) {
-      currentIdx = clamped;
-      // Update visuals
-      list.querySelectorAll('.wheel-item').forEach(function(el, i) {
-        el.classList.toggle('sel', i === clamped);
-      });
-      // Update state immediately
-      cl.size = ALL_SIZES[clamped];
-      playTick();
-      clUpdateSKUDisplay();
-      if (display) display.textContent = cl.size;
-      // Custom input
-      const row = document.getElementById('custom-size-row');
-      if (row) row.style.display = cl.size === 'Custom' ? 'block' : 'none';
-    }
-  }, { passive: true });
+      if (clamped !== currentIdx) {
+        currentIdx = clamped;
+        // Update visuals
+        list.querySelectorAll('.wheel-item').forEach(function(el, i) {
+          el.classList.toggle('sel', i === clamped);
+        });
+        // Update state immediately
+        cl.size = ALL_SIZES[clamped];
+        playTick();
+        clUpdateSKUDisplay();
+        if (display) display.textContent = cl.size;
+        // Custom input
+        const row = document.getElementById('custom-size-row');
+        if (row) row.style.display = cl.size === 'Custom' ? 'block' : 'none';
+      }
+    }, { passive: true });
+  }
 
   // Tap any item → scroll smoothly to it
-  list.addEventListener('click', function(e) {
-    const item = e.target.closest('[data-idx]');
-    if (!item) return;
-    const idx = parseInt(item.getAttribute('data-idx'));
-    list.scrollTo({ top: idx * ITEM_H, behavior: 'smooth' });
-  });
+  if (ALL_SIZES.length > 0) {
+    list.addEventListener('click', function(e) {
+      const item = e.target.closest('[data-idx]');
+      if (!item) return;
+      const idx = parseInt(item.getAttribute('data-idx'));
+      list.scrollTo({ top: idx * ITEM_H, behavior: 'smooth' });
+    });
+  }
 }
 
 
@@ -4344,8 +4355,31 @@ function clRefreshShoeWidthOptions() {
   var allowedWidths = clShoeEbay.clGetShoeAllowedWidths(cl.shoeGroup, cl.category);
   var widthDiv = document.getElementById('shoewidth-chips');
   if (widthDiv && allowedWidths.length > 0) {
-    widthDiv.innerHTML = allowedWidths.map(w=>`<button class="cl-chip cl-shoewidth-chip" data-v="${w}" onclick="clSetShoeWidth('${w}')">${w}</button>`).join('');
+    var tax = clShoeEbay.clGetShoeTaxonomyForSelection(cl.shoeGroup, cl.category);
+    var isRequired = tax && tax.aspects['Shoe Width'] && tax.aspects['Shoe Width'].required;
+    var html = '';
+    if (!isRequired) {
+      html += `<button class="cl-chip cl-shoewidth-chip" data-v="" onclick="clSetShoeWidth('')">Not Specified</button>`;
+    }
+    html += allowedWidths.map(w=>`<button class="cl-chip cl-shoewidth-chip" data-v="${w}" onclick="clSetShoeWidth('${w}')">${w}</button>`).join('');
+    widthDiv.innerHTML = html;
     cl.shoeWidth = '';
+  }
+}
+
+function clRefreshShoeUpperMaterialOptions() {
+  if (cl.type !== 'shoes' || !cl.shoeGroup || !cl.category) return;
+  var allowedMaterials = clShoeEbay.clGetShoeAllowedUpperMaterials(cl.shoeGroup, cl.category);
+  var materialDiv = document.getElementById('uppermaterial-chips');
+  var materialSect = document.getElementById('uppermaterial-sect');
+  if (materialDiv && materialSect) {
+    if (allowedMaterials.length > 0) {
+      materialDiv.innerHTML = allowedMaterials.map(m=>`<button class="cl-chip" data-v="${m}" onclick="clSetOuterMaterial('${m}')" title="${m}">${m}</button>`).join('');
+      materialSect.style.display = 'block';
+    } else {
+      materialSect.style.display = 'none';
+    }
+    cl.outerMaterial = '';
   }
 }
 
@@ -4361,10 +4395,12 @@ function clSetCat(c) {
     cl.size = '';
     cl.shoeWidth = '';
     cl.color = '';
+    cl.colorCustom = '';
     cl.outerMaterial = '';
     clInitSizeWheel();
     clRefreshShoeColorOptions();
     clRefreshShoeWidthOptions();
+    clRefreshShoeUpperMaterialOptions();
     return;
   }
 
@@ -4621,41 +4657,20 @@ function clStep2Next() {
     toast('⚠️ Ingresa el Inseam'); return;
   }
 
-  // ✅ SHOES: Validate taxonomy-driven fields
-  if (cl.type === 'shoes' && cl.shoeGroup && cl.category) {
-    var shoeTax = clShoeEbay.clGetShoeTaxonomyForSelection(cl.shoeGroup, cl.category);
-    if (!shoeTax) { toast('⚠️ Invalid shoe selection'); return; }
-
-    // Size must be from taxonomy
-    var allowedSizes = clShoeEbay.clGetShoeAllowedSizes(cl.shoeGroup, cl.category);
-    if (!cl.size || cl.size === 'Custom' || !allowedSizes.includes(cl.size)) {
-      if (cl.size === 'Custom') {
-        // Custom size allowed, already captured
-      } else {
-        toast('⚠️ Invalid shoe size'); return;
-      }
-    }
-
-    // Color must be from taxonomy or "Other"
-    var allowedColors = clShoeEbay.clGetShoeAllowedColors(cl.shoeGroup, cl.category);
-    if (!cl.color || (!allowedColors.includes(cl.color) && cl.color !== 'Other')) {
-      toast('⚠️ Invalid shoe color'); return;
-    }
-
-    // Width is optional
-    if (cl.shoeWidth) {
-      var allowedWidths = clShoeEbay.clGetShoeAllowedWidths(cl.shoeGroup, cl.category);
-      if (allowedWidths.length > 0 && !allowedWidths.includes(cl.shoeWidth)) {
-        toast('⚠️ Invalid shoe width'); return;
-      }
-    }
-
-    // Upper Material - check if required and validate
-    var allowedMaterials = clShoeEbay.clGetShoeAllowedUpperMaterials(cl.shoeGroup, cl.category);
-    if (allowedMaterials.length > 0 && shoeTax.aspects['Upper Material']?.required) {
-      if (!cl.outerMaterial || !allowedMaterials.includes(cl.outerMaterial)) {
-        toast('⚠️ Upper Material is required'); return;
-      }
+  // ✅ SHOES: Validate taxonomy-driven fields using shared validator
+  if (cl.type === 'shoes') {
+    var shoeValidation = clShoeEbay.clValidateShoeItemInfo({
+      shoeGroup: cl.shoeGroup,
+      category: cl.category,
+      size: cl.size,
+      color: cl.color,
+      colorCustom: cl.colorCustom,
+      shoeWidth: cl.shoeWidth,
+      outerMaterial: cl.outerMaterial
+    });
+    if (!shoeValidation.ok) {
+      toast('⚠️ ' + shoeValidation.error);
+      return;
     }
   }
 

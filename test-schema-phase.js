@@ -1667,6 +1667,123 @@ test(217, 'UI: Girls shoe categories populated', () => {
   return cats.length > 0;
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// INTEGRATION DEFECT FIXES — New tests
+// ═══════════════════════════════════════════════════════════════════════════
+
+test(218, 'SIZE: No Custom in shoe size list', () => {
+  var sizes = clShoeEbay.clGetShoeAllowedSizes('mens', 'Sneakers');
+  return !sizes.includes('Custom');
+});
+
+test(219, 'SIZE: No-route shoe group returns empty', () => {
+  var sizes = clShoeEbay.clGetShoeAllowedSizes('baby', 'Sneakers');
+  return sizes.length === 0;
+});
+
+test(220, 'SIZE: No category returns empty', () => {
+  var sizes = clShoeEbay.clGetShoeAllowedSizes('mens', '');
+  return sizes.length === 0;
+});
+
+test(221, 'COLOR: Valid custom color validates', () => {
+  var result = clShoeEbay.clValidateShoeItemInfo({
+    shoeGroup: 'mens', category: 'Sneakers', size: '10',
+    color: 'Other', colorCustom: 'Black', shoeWidth: '', outerMaterial: ''
+  });
+  return result.ok === true;
+});
+
+test(222, 'COLOR: Invalid custom color blocks', () => {
+  var result = clShoeEbay.clValidateShoeItemInfo({
+    shoeGroup: 'mens', category: 'Sneakers', size: '10',
+    color: 'Other', colorCustom: 'NotAColor', shoeWidth: '', outerMaterial: ''
+  });
+  return result.ok === false;
+});
+
+test(223, 'COLOR: Empty custom color blocks', () => {
+  var result = clShoeEbay.clValidateShoeItemInfo({
+    shoeGroup: 'mens', category: 'Sneakers', size: '10',
+    color: 'Other', colorCustom: '', shoeWidth: '', outerMaterial: ''
+  });
+  return result.ok === false;
+});
+
+test(224, 'ACTIVITY: Running derives to Running & Jogging', () => {
+  return clShoeEbay.clGetDerivedShoeActivity('Running') === 'Running & Jogging';
+});
+
+test(225, 'ACTIVITY: Basketball derives to Basketball', () => {
+  return clShoeEbay.clGetDerivedShoeActivity('Basketball') === 'Basketball';
+});
+
+test(226, 'ACTIVITY: Unsupported source returns null', () => {
+  return clShoeEbay.clGetDerivedShoeActivity('Sandals') === null;
+});
+
+test(227, 'CATEGORY: Mens options are exact routing keys', () => {
+  var cats = clShoeEbay.clGetShoeAllowedCategories('mens');
+  var routingKeys = Object.keys(clShoeEbay.CL_SHOE_ROUTING.mens);
+  return cats.length === routingKeys.length && cats.every(c => routingKeys.includes(c));
+});
+
+test(228, 'CATEGORY: Womens options are exact routing keys', () => {
+  var cats = clShoeEbay.clGetShoeAllowedCategories('womens');
+  var routingKeys = Object.keys(clShoeEbay.CL_SHOE_ROUTING.womens);
+  return cats.length === routingKeys.length && cats.every(c => routingKeys.includes(c));
+});
+
+test(229, 'CATEGORY: Unisex_kids exactly 2 categories', () => {
+  var cats = clShoeEbay.clGetShoeAllowedCategories('unisex_kids');
+  return cats.length === 2 && cats.includes('Kids Sneakers') && cats.includes('Kids Boots');
+});
+
+test(230, 'VALIDATOR: Invalid size blocks progression', () => {
+  var result = clShoeEbay.clValidateShoeItemInfo({
+    shoeGroup: 'mens', category: 'Sneakers', size: 'XL',
+    color: 'Black', colorCustom: '', shoeWidth: '', outerMaterial: ''
+  });
+  return result.ok === false && result.error.includes('size');
+});
+
+test(231, 'VALIDATOR: No shoeGroup blocks', () => {
+  var result = clShoeEbay.clValidateShoeItemInfo({
+    shoeGroup: '', category: 'Sneakers', size: '10',
+    color: 'Black', colorCustom: '', shoeWidth: '', outerMaterial: ''
+  });
+  return result.ok === false;
+});
+
+test(232, 'VALIDATOR: Baby blocks', () => {
+  var result = clShoeEbay.clValidateShoeItemInfo({
+    shoeGroup: 'baby', category: 'Sneakers', size: '1',
+    color: 'Black', colorCustom: '', shoeWidth: '', outerMaterial: ''
+  });
+  return result.ok === false && result.error.includes('Baby');
+});
+
+test(233, 'VALIDATOR: Valid shoe passes', () => {
+  var result = clShoeEbay.clValidateShoeItemInfo({
+    shoeGroup: 'womens', category: 'Boots', size: '8',
+    color: 'Black', colorCustom: '', shoeWidth: 'Standard', outerMaterial: 'Leather'
+  });
+  return result.ok === true;
+});
+
+test(234, 'VALIDATOR: Optional material blank passes', () => {
+  var result = clShoeEbay.clValidateShoeItemInfo({
+    shoeGroup: 'mens', category: 'Sneakers', size: '10',
+    color: 'Black', colorCustom: '', shoeWidth: '', outerMaterial: ''
+  });
+  return result.ok === true;
+});
+
+test(235, 'WIDTH: Optional width can be blank', () => {
+  var tax = clShoeEbay.clGetShoeTaxonomyForSelection('mens', 'Sneakers');
+  return tax.aspects['Shoe Width'] && !tax.aspects['Shoe Width'].required;
+});
+
 console.log('\n' + '═'.repeat(70));
 console.log('SCHEMA PHASE COMPREHENSIVE TEST RESULTS');
 console.log('═'.repeat(70));
@@ -1676,7 +1793,7 @@ console.log(`Failed: ${failed} tests ✗`);
 console.log('\n' + '═'.repeat(70));
 
 if (failed === 0) {
-  console.log('✓ ALL TESTS PASSED — Schema phase ready for production\n');
+  console.log('✓ ALL AUTOMATED TESTS PASSED\n');
   process.exit(0);
 } else {
   console.log(`✗ ${failed} TEST(S) FAILED — Review above\n`);
