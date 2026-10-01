@@ -147,6 +147,52 @@ const CL_SHOE_CONDITION_MAP = {
   'PREOWNED_FAIR': 3010
 };
 
+// ── sourceCategory → eBay Style Mapping ─
+const CL_SHOE_SOURCE_TO_STYLE = {
+  'Sneakers': 'Sneaker',
+  'Running': 'Sneaker',
+  'Athletic': 'Sneaker',
+  'Basketball': 'Sneaker',
+  'Kids Sneakers': 'Sneaker',
+  'Casual': 'Slip-On',
+  'Dress Shoes': 'Oxford',
+  'Boots': 'Boot',
+  'Ankle Boots': 'Boot',
+  'Sandals': 'Slide',
+  'Heels': 'Platform',
+  'Flats': 'Flat',
+  'Loafers': 'Loafer',
+  'Slip-On': 'Slip-On',
+  'Clogs': 'Clog',
+  'Mules': 'Mule',
+  'Wedges': 'Platform',
+  'Platform': 'Platform',
+  'Kids Boots': 'Boot'
+};
+
+// ── sourceCategory → eBay Type Mapping ─
+const CL_SHOE_SOURCE_TO_TYPE = {
+  'Sneakers': 'Athletic',
+  'Running': 'Athletic',
+  'Athletic': 'Athletic',
+  'Basketball': 'Athletic',
+  'Kids Sneakers': 'Athletic',
+  'Casual': 'Casual',
+  'Dress Shoes': 'Dress',
+  'Boots': 'Boot',
+  'Ankle Boots': 'Boot',
+  'Sandals': 'Sandal',
+  'Heels': 'Heel',
+  'Flats': 'Flat',
+  'Loafers': 'Casual',
+  'Slip-On': 'Casual',
+  'Clogs': 'Casual',
+  'Mules': 'Casual',
+  'Wedges': 'Heel',
+  'Platform': 'Casual',
+  'Kids Boots': 'Boot'
+};
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Pure Functions
 // ═══════════════════════════════════════════════════════════════════════════
@@ -228,6 +274,191 @@ function clClassifySessionRow(row) {
     return 'ambiguous';
   }
   return 'ambiguous';
+}
+
+function clResolveShoeEbayAspects(row) {
+  if (!row || !row.itemType || row.itemType !== 'shoes') {
+    return { ok: false, code: 'NOT_SHOE', message: 'Not a shoe row' };
+  }
+
+  // Step 1: Check shoeGroup
+  if (!row.shoeGroup) {
+    return { ok: false, code: 'MISSING_SHOE_GROUP', field: 'shoeGroup', message: 'Missing shoeGroup' };
+  }
+
+  // Step 2: Check sourceCategory
+  if (!row.sourceCategory) {
+    return { ok: false, code: 'MISSING_SOURCE_CATEGORY', field: 'sourceCategory', message: 'Missing sourceCategory' };
+  }
+  if (row.sourceCategory === 'Other') {
+    return { ok: false, code: 'INVALID_SOURCE_CATEGORY', field: 'sourceCategory', value: row.sourceCategory, message: 'Cannot use "Other" as shoe category' };
+  }
+
+  // Step 3: Check routing exists and get categoryId
+  var categoryId = clGetShoeEbayCategoryIdFor(row);
+  if (!categoryId) {
+    return { ok: false, code: 'UNSUPPORTED_CATEGORY', field: 'sourceCategory', value: row.sourceCategory, message: 'No approved routing for this shoe category' };
+  }
+
+  // Step 4: Verify categoryId matches row
+  if (parseInt(row.categoryId) !== categoryId) {
+    return { ok: false, code: 'CATEGORY_MISMATCH', field: 'categoryId', value: row.categoryId, expected: categoryId, message: 'Category ID mismatch with routing' };
+  }
+
+  // Step 5: Get and validate taxonomy
+  var taxonomy = CL_SHOE_TAXONOMY[String(categoryId)];
+  if (!taxonomy) {
+    return { ok: false, code: 'NO_TAXONOMY', field: 'categoryId', value: categoryId, message: 'Taxonomy not found for category ' + categoryId };
+  }
+
+  // Step 6: Check condition
+  if (!row.condition) {
+    return { ok: false, code: 'MISSING_CONDITION', field: 'condition', message: 'Missing condition' };
+  }
+  var conditionId = clGetShoeConditionIdFor(row);
+  if (!conditionId) {
+    return { ok: false, code: 'INVALID_CONDITION', field: 'condition', value: row.condition, message: 'Invalid condition' };
+  }
+  if (parseInt(row.conditionId) !== conditionId) {
+    return { ok: false, code: 'CONDITION_MISMATCH', field: 'conditionId', value: row.conditionId, expected: conditionId, message: 'Condition ID mismatch' };
+  }
+
+  // Step 7: Validate BRAND
+  var brandAspect = taxonomy.aspects && taxonomy.aspects.Brand || taxonomy.brand;
+  if (brandAspect && brandAspect.required && (!row.brand || row.brand === '' || row.brand === 'Other')) {
+    if (row.brand === 'Other' && !row.brandCustom) {
+      return { ok: false, code: 'MISSING_BRAND', field: 'brand', message: 'Brand is required; "Other" requires custom brand' };
+    }
+    var brandToUse = row.brand === 'Other' ? row.brandCustom : row.brand;
+    if (!brandToUse) {
+      return { ok: false, code: 'MISSING_BRAND', field: 'brand', message: 'Brand is required' };
+    }
+  }
+  var usedBrand = row.brand === 'Other' ? row.brandCustom : row.brand;
+
+  // Step 8: Validate US SHOE SIZE
+  var sizeAspect = taxonomy.aspects['US Shoe Size'];
+  if (sizeAspect) {
+    if (sizeAspect.required && (!row.size || row.size === '')) {
+      return { ok: false, code: 'MISSING_SIZE', field: 'size', message: 'US Shoe Size is required' };
+    }
+    if (row.size && sizeAspect.values && sizeAspect.values.length > 0) {
+      if (!sizeAspect.values.includes(row.size)) {
+        return { ok: false, code: 'INVALID_SIZE', field: 'size', value: row.size, message: 'Invalid US Shoe Size for this category' };
+      }
+    }
+  }
+
+  // Step 9: Validate COLOR
+  var colorAspect = taxonomy.aspects.Color;
+  if (colorAspect) {
+    var colorValue = row.color === 'Other' ? row.colorCustom : row.color;
+    if (colorAspect.required && (!colorValue || colorValue === '')) {
+      return { ok: false, code: 'MISSING_COLOR', field: 'color', message: 'Color is required' };
+    }
+    if (colorValue && colorAspect.values && colorAspect.values.length > 0) {
+      if (!colorAspect.values.includes(colorValue)) {
+        return { ok: false, code: 'INVALID_COLOR', field: 'color', value: colorValue, message: 'Invalid Color for this category' };
+      }
+    }
+  }
+  var usedColor = row.color === 'Other' ? row.colorCustom : row.color;
+
+  // Step 10: Validate DEPARTMENT
+  var deptAspect = taxonomy.aspects.Department;
+  if (deptAspect) {
+    var deptValue = clShoeDeptFor(row);
+    if (deptAspect.required && (!deptValue || deptValue === '')) {
+      return { ok: false, code: 'MISSING_DEPARTMENT', field: 'department', message: 'Department is required' };
+    }
+    if (deptValue && deptAspect.values && deptAspect.values.length > 0) {
+      if (!deptAspect.values.includes(deptValue)) {
+        return { ok: false, code: 'INVALID_DEPARTMENT', field: 'department', value: deptValue, message: 'Department not allowed for this category' };
+      }
+    }
+  }
+
+  // Step 11: Validate UPPER MATERIAL
+  var materialAspect = taxonomy.aspects['Upper Material'];
+  if (materialAspect) {
+    if (materialAspect.required && (!row.outerMaterial || row.outerMaterial === '')) {
+      return { ok: false, code: 'MISSING_UPPER_MATERIAL', field: 'outerMaterial', message: 'Upper Material is required for this category' };
+    }
+    if (row.outerMaterial && materialAspect.values && materialAspect.values.length > 0) {
+      if (!materialAspect.values.includes(row.outerMaterial)) {
+        return { ok: false, code: 'INVALID_UPPER_MATERIAL', field: 'outerMaterial', value: row.outerMaterial, message: 'Invalid Upper Material for this category' };
+      }
+    }
+  }
+
+  // Step 12: Validate SHOE WIDTH
+  var widthAspect = taxonomy.aspects['Shoe Width'];
+  if (widthAspect) {
+    if (widthAspect.required && (!row.shoeWidth || row.shoeWidth === '')) {
+      return { ok: false, code: 'MISSING_SHOE_WIDTH', field: 'shoeWidth', message: 'Shoe Width is required for this category' };
+    }
+    if (row.shoeWidth && widthAspect.values && widthAspect.values.length > 0) {
+      if (!widthAspect.values.includes(row.shoeWidth)) {
+        return { ok: false, code: 'INVALID_SHOE_WIDTH', field: 'shoeWidth', value: row.shoeWidth, message: 'Invalid Shoe Width for this category' };
+      }
+    }
+  }
+
+  // Step 13: Validate STYLE (derived from sourceCategory)
+  var styleAspect = taxonomy.aspects.Style;
+  var derivedStyle = CL_SHOE_SOURCE_TO_STYLE[row.sourceCategory];
+  if (styleAspect) {
+    if (styleAspect.required && !derivedStyle) {
+      return { ok: false, code: 'MISSING_STYLE', field: 'style', message: 'Cannot derive eBay Style from this category' };
+    }
+    if (derivedStyle && styleAspect.values && styleAspect.values.length > 0) {
+      if (!styleAspect.values.includes(derivedStyle)) {
+        return { ok: false, code: 'INVALID_STYLE', field: 'style', value: derivedStyle, message: 'Derived Style not valid for this category' };
+      }
+    }
+  }
+
+  // Step 14: Validate TYPE (derived from sourceCategory)
+  var typeAspect = taxonomy.aspects.Type;
+  var derivedType = CL_SHOE_SOURCE_TO_TYPE[row.sourceCategory];
+  if (typeAspect) {
+    if (typeAspect.required && !derivedType) {
+      return { ok: false, code: 'MISSING_TYPE', field: 'type', message: 'Cannot derive eBay Type from this category' };
+    }
+    if (derivedType && typeAspect.values && typeAspect.values.length > 0) {
+      if (!typeAspect.values.includes(derivedType)) {
+        return { ok: false, code: 'INVALID_TYPE', field: 'type', value: derivedType, message: 'Derived Type not valid for this category' };
+      }
+    }
+  }
+
+  // Step 15: Validate PERFORMANCE/ACTIVITY
+  var activityAspect = taxonomy.aspects['Performance/Activity'];
+  var activity = '';
+  if (row.activity && activityAspect) {
+    if (activityAspect.values && activityAspect.values.length > 0) {
+      if (!activityAspect.values.includes(row.activity)) {
+        return { ok: false, code: 'INVALID_ACTIVITY', field: 'activity', value: row.activity, message: 'Invalid Performance/Activity for this category' };
+      }
+      activity = row.activity;
+    }
+  }
+
+  // Build result
+  return {
+    ok: true,
+    categoryId: categoryId,
+    conditionId: conditionId,
+    department: clShoeDeptFor(row),
+    size: row.size || '',
+    color: usedColor || '',
+    style: derivedStyle || '',
+    ebayType: derivedType || '',
+    upperMaterial: row.outerMaterial || '',
+    shoeWidth: row.shoeWidth || '',
+    activity: activity,
+    brand: usedBrand || ''
+  };
 }
 
 function clValidateShoeExport(session) {
@@ -343,6 +574,8 @@ var clShoeEbay = {
   CL_SHOE_ROUTING: CL_SHOE_ROUTING,
   CL_SHOE_DEPT_MAP: CL_SHOE_DEPT_MAP,
   CL_SHOE_CONDITION_MAP: CL_SHOE_CONDITION_MAP,
+  CL_SHOE_SOURCE_TO_STYLE: CL_SHOE_SOURCE_TO_STYLE,
+  CL_SHOE_SOURCE_TO_TYPE: CL_SHOE_SOURCE_TO_TYPE,
   clIsShoeRow: clIsShoeRow,
   clShoeDeptFor: clShoeDeptFor,
   clGetShoeEbayCategoryIdFor: clGetShoeEbayCategoryIdFor,
@@ -350,6 +583,7 @@ var clShoeEbay = {
   clBuildEbayRowData: clBuildEbayRowData,
   clValidateShoeExport: clValidateShoeExport,
   clClassifySessionRow: clClassifySessionRow,
+  clResolveShoeEbayAspects: clResolveShoeEbayAspects,
   clBuildEbayHeader: clBuildEbayHeader,
   clBuildEbayCsvRow: clBuildEbayCsvRow
 };

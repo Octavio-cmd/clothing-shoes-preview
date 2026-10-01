@@ -2889,9 +2889,9 @@ function screen(n) {
 
 // ── State ───────────────────────────────────────────────────
 let cl = {
-  sku:'', type:'clothing', gender:'unisex', shoeGroup:'', brand:'', brandCustom:'', category:'', size:'L',
+  sku:'', type:'clothing', itemType:'clothing', gender:'unisex', shoeGroup:'', brand:'', brandCustom:'', category:'', size:'L',
   color:'', colorCustom:'', condition:'', defects:[], notes:'',
-  weightLb:'', weightOz:'',
+  weightLb:'', weightOz:'', outerMaterial:'', shoeWidth:'',
   photos:{ front:null, back:null, tag:null, detail:null, meas1:null, meas2:null },
   clothingPrices: { minPrice: null, avgPrice: null, suggestedPrice: null, found: false },
   pricesLoading: false,
@@ -2959,6 +2959,7 @@ function clBrandsForType(type) {
 // Cambiar Ropa/Zapatos: la marca se conserva solo si existe en la lista destino; si no, se limpia (nunca se elige otra)
 function clSetType(type) {
   cl.type = type;
+  cl.itemType = type === 'shoes' ? 'shoes' : 'clothing';
   if (cl.brand && !clBrandsForType(type).includes(cl.brand)) { cl.brand = ''; cl.brandCustom = ''; }
 }
 
@@ -5537,17 +5538,17 @@ function clBuildEbayRow(photoUrls) {
   const totalLb = clWeightTotalLb();
 
   var input = {
-    itemType: cl.type,
+    itemType: cl.itemType,
     gender: cl.gender,
-    shoeGroup: cl.type === 'shoes' ? cl.shoeGroup : '',
+    shoeGroup: cl.itemType === 'shoes' ? cl.shoeGroup : '',
     sourceCategory: cl.category,
     condition: cl.condition,
     sku: cl.sku || '',
     photos: photoUrls || '',
     title: title,
     category: clBuildEbayCategory ? clBuildEbayCategory() : cl.category || '',
-    categoryId: cl.type === 'shoes' ? undefined : (clGetEbayCategoryId ? clGetEbayCategoryId() : undefined),
-    conditionId: cl.type === 'shoes' ? undefined : (clGetConditionId ? clGetConditionId() : undefined),
+    categoryId: cl.itemType === 'shoes' ? undefined : (clGetEbayCategoryId ? clGetEbayCategoryId() : undefined),
+    conditionId: cl.itemType === 'shoes' ? undefined : (clGetConditionId ? clGetConditionId() : undefined),
     aspects: clBuildAspects(),
     brand: cl.brand || '',
     sizeType: clSizeType(),

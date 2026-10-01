@@ -1004,6 +1004,149 @@ test(140, 'CSV builder: Uses default profile names from config', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// PHASE 2: FULL TAXONOMY VALIDATION (16 additional tests)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ── Validation Order Tests (4 tests) ──────────────────────────────────────
+test(141, 'Phase 2: clResolveShoeEbayAspects validates itemType === shoes', () => {
+  const result = clShoeEbay.clResolveShoeEbayAspects({itemType: 'clothing'});
+  return assertEqual(result.ok, false, 'non-shoe') && assertEqual(result.code, 'NOT_SHOE', 'code');
+});
+
+test(142, 'Phase 2: Missing shoeGroup blocks resolution', () => {
+  const result = clShoeEbay.clResolveShoeEbayAspects({itemType: 'shoes', sourceCategory: 'Sneakers'});
+  return assertEqual(result.code, 'MISSING_SHOE_GROUP', 'blocks on missing shoeGroup');
+});
+
+test(143, 'Phase 2: sourceCategory="Other" blocks resolution', () => {
+  const result = clShoeEbay.clResolveShoeEbayAspects({itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Other'});
+  return assertEqual(result.code, 'INVALID_SOURCE_CATEGORY', 'blocks "Other"');
+});
+
+test(144, 'Phase 2: Unsupported shoeGroup+sourceCategory combination blocks', () => {
+  const result = clShoeEbay.clResolveShoeEbayAspects({itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'InvalidCat'});
+  return assertEqual(result.code, 'UNSUPPORTED_CATEGORY', 'blocks invalid routing');
+});
+
+// ── Category Consistency Tests (2 tests) ──────────────────────────────────
+test(145, 'Phase 2: categoryId mismatch with routing blocks', () => {
+  const result = clShoeEbay.clResolveShoeEbayAspects({
+    itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers',
+    categoryId: 99999  // Wrong ID
+  });
+  return assertEqual(result.code, 'CATEGORY_MISMATCH', 'blocks mismatch');
+});
+
+test(146, 'Phase 2: Correct categoryId passes category check', () => {
+  const result = clShoeEbay.clResolveShoeEbayAspects({
+    itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers',
+    categoryId: 15709,
+    condition: 'NEW_WITH_BOX',
+    conditionId: 1000,
+    brand: 'Nike',
+    size: '10',
+    color: 'Black'
+  });
+  return assertEqual(result.ok, true, 'passes') && assertEqual(result.categoryId, 15709, 'categoryId');
+});
+
+// ── Condition Consistency Tests (2 tests) ────────────────────────────────
+test(147, 'Phase 2: Missing condition blocks', () => {
+  const result = clShoeEbay.clResolveShoeEbayAspects({
+    itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers',
+    categoryId: 15709
+  });
+  return assertEqual(result.code, 'MISSING_CONDITION', 'blocks missing');
+});
+
+test(148, 'Phase 2: conditionId mismatch with condition blocks', () => {
+  const result = clShoeEbay.clResolveShoeEbayAspects({
+    itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers',
+    categoryId: 15709,
+    condition: 'NEW_WITH_BOX',
+    conditionId: 99999  // Wrong ID
+  });
+  return assertEqual(result.code, 'CONDITION_MISMATCH', 'blocks mismatch');
+});
+
+// ── Derived Mapping Tests (4 tests) ──────────────────────────────────────
+test(149, 'Phase 2: sourceCategory "Sneakers" derives to Style "Sneaker"', () => {
+  const result = clShoeEbay.clResolveShoeEbayAspects({
+    itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers',
+    categoryId: 15709, condition: 'NEW_WITH_BOX', conditionId: 1000,
+    brand: 'Nike', size: '10', color: 'Black'
+  });
+  return assertEqual(result.ok, true, 'valid') && assertEqual(result.style, 'Sneaker', 'style');
+});
+
+test(150, 'Phase 2: sourceCategory "Sneakers" derives to Type "Athletic"', () => {
+  const result = clShoeEbay.clResolveShoeEbayAspects({
+    itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers',
+    categoryId: 15709, condition: 'NEW_WITH_BOX', conditionId: 1000,
+    brand: 'Nike', size: '10', color: 'Black'
+  });
+  return assertEqual(result.ebayType, 'Athletic', 'type');
+});
+
+test(151, 'Phase 2: Invalid Style for category blocks (Women Boots style must be specific)', () => {
+  const result = clShoeEbay.clResolveShoeEbayAspects({
+    itemType: 'shoes', shoeGroup: 'womens', sourceCategory: 'Boots',
+    categoryId: 53557, condition: 'NEW_WITH_BOX', conditionId: 1000,
+    brand: 'Timberland', size: '7', color: 'Black', outerMaterial: 'Leather'
+  });
+  return assertEqual(result.ok, false, 'blocks') && assertEqual(result.code, 'INVALID_STYLE', 'style mismatch');
+});
+
+test(152, 'Phase 2: Color "Other" with valid custom color passes', () => {
+  const result = clShoeEbay.clResolveShoeEbayAspects({
+    itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers',
+    categoryId: 15709, condition: 'NEW_WITH_BOX', conditionId: 1000,
+    brand: 'Nike', size: '10', color: 'Other', colorCustom: 'Red'
+  });
+  return assertEqual(result.ok, true, 'valid') && assertEqual(result.color, 'Red', 'custom color used');
+});
+
+// ── Brand Handling Tests (2 tests) ───────────────────────────────────────
+test(153, 'Phase 2: Brand "Other" requires brandCustom to be non-empty', () => {
+  const result = clShoeEbay.clResolveShoeEbayAspects({
+    itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers',
+    categoryId: 15709, condition: 'NEW_WITH_BOX', conditionId: 1000,
+    brand: 'Other', brandCustom: '',  // Empty custom brand
+    size: '10', color: 'Black'
+  });
+  return assertEqual(result.code, 'MISSING_BRAND', 'blocks');
+});
+
+test(154, 'Phase 2: Brand "Other" with custom value passes', () => {
+  const result = clShoeEbay.clResolveShoeEbayAspects({
+    itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers',
+    categoryId: 15709, condition: 'NEW_WITH_BOX', conditionId: 1000,
+    brand: 'Other', brandCustom: 'CustomBrand',
+    size: '10', color: 'Black'
+  });
+  return assertEqual(result.ok, true, 'passes') && assertEqual(result.brand, 'CustomBrand', 'brand');
+});
+
+// ── Custom Color and Upper Material Validation Tests (2 tests) ──────────
+test(155, 'Phase 2: Color "Other" with INVALID custom color blocks', () => {
+  const result = clShoeEbay.clResolveShoeEbayAspects({
+    itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers',
+    categoryId: 15709, condition: 'NEW_WITH_BOX', conditionId: 1000,
+    brand: 'Nike', size: '10', color: 'Other', colorCustom: 'InvalidColor'
+  });
+  return assertEqual(result.ok, false, 'blocks') && assertEqual(result.code, 'INVALID_COLOR', 'code');
+});
+
+test(156, 'Phase 2: Upper material optional for Athletic Shoes passes without', () => {
+  const result = clShoeEbay.clResolveShoeEbayAspects({
+    itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers',
+    categoryId: 15709, condition: 'NEW_WITH_BOX', conditionId: 1000,
+    brand: 'Nike', size: '10', color: 'Black'
+  });
+  return assertEqual(result.ok, true, 'valid') && assertEqual(result.upperMaterial, '', 'empty material');
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 // SUMMARY
 // ═══════════════════════════════════════════════════════════════════════════
 
