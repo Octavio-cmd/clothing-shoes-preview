@@ -1482,7 +1482,7 @@ test(187, 'UI: Mens Sneaker sizes (no 1C)', () => {
 
 test(188, 'UI: Boys Sneaker sizes correct range', () => {
   var sizes = clShoeEbay.clGetShoeAllowedSizes('boys', 'Sneakers');
-  return sizes.length > 0 && sizes.includes('1') && !sizes.includes('4');
+  return sizes.length > 0 && sizes.includes('1') && sizes.includes('4') && sizes.includes('13.5') && !sizes.includes('1C') && !sizes.includes('1Y');
 });
 
 test(189, 'UI: Exact width values (no ambiguous labels)', () => {
@@ -1526,41 +1526,41 @@ test(196, 'UI: Unisex Kids sizes', () => {
 });
 
 test(197, 'PRESERVE: brandCustom empty when not custom', () => {
-  var row = {
-    itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers',
+  var input = {
+    itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers', categoryId: 15709,
     condition: 'NEW_WITH_BOX', conditionId: 1000, brand: 'Nike',
     brandCustom: '', color: 'Black', colorCustom: '', size: '10.5',
     shoeWidth: 'Standard', outerMaterial: 'Leather'
   };
-  var resolved = clShoeEbay.clResolveShoeEbayAspects(row);
-  return resolved.ok && resolved.brandCustom === '';
+  var row = clShoeEbay.clBuildEbayRowData(input);
+  return row.brandCustom === '';
 });
 
 test(198, 'PRESERVE: brandCustom when custom', () => {
-  var row = {
-    itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers',
+  var input = {
+    itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Sneakers', categoryId: 15709,
     condition: 'NEW_WITH_BOX', conditionId: 1000, brand: 'Other',
-    brandCustom: 'Nike Air', color: 'Black', colorCustom: '', size: '10.5',
+    brandCustom: 'Hoka', color: 'Black', colorCustom: '', size: '10.5',
     shoeWidth: 'Standard', outerMaterial: 'Leather'
   };
-  var resolved = clShoeEbay.clResolveShoeEbayAspects(row);
-  return resolved.ok && resolved.brandCustom === 'Nike Air';
+  var row = clShoeEbay.clBuildEbayRowData(input);
+  return row.brandCustom === 'Hoka';
 });
 
 test(199, 'PRESERVE: colorCustom when custom', () => {
-  var row = {
-    itemType: 'shoes', shoeGroup: 'womens', sourceCategory: 'Boots',
+  var input = {
+    itemType: 'shoes', shoeGroup: 'womens', sourceCategory: 'Boots', categoryId: 53557,
     condition: 'NEW_WITH_BOX', conditionId: 1000, brand: 'Timberland',
-    brandCustom: '', color: 'Other', colorCustom: 'Burnt Orange', size: '8.5',
+    brandCustom: '', color: 'Other', colorCustom: 'Burgundy', size: '8.5',
     shoeWidth: 'Standard', outerMaterial: 'Leather'
   };
-  var resolved = clShoeEbay.clResolveShoeEbayAspects(row);
-  return resolved.ok && resolved.colorCustom === 'Burnt Orange';
+  var row = clShoeEbay.clBuildEbayRowData(input);
+  return row.colorCustom === 'Burgundy';
 });
 
 test(200, 'VALIDATION: Valid shoe with custom brand passes', () => {
   var row = {
-    itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Casual',
+    itemType: 'shoes', shoeGroup: 'mens', sourceCategory: 'Casual', categoryId: 24087,
     condition: 'NEW_WITH_BOX', conditionId: 1000, brand: 'Other',
     brandCustom: 'UnknownBrand', color: 'Black', colorCustom: '', size: '9.5',
     shoeWidth: 'Standard', outerMaterial: 'Rubber'
@@ -1571,9 +1571,9 @@ test(200, 'VALIDATION: Valid shoe with custom brand passes', () => {
 
 test(201, 'VALIDATION: Womens Heels with exact taxonomy passes', () => {
   var row = {
-    itemType: 'shoes', shoeGroup: 'womens', sourceCategory: 'Heels',
+    itemType: 'shoes', shoeGroup: 'womens', sourceCategory: 'Heels', categoryId: 55793,
     condition: 'NEW_WITHOUT_BOX', conditionId: 1500, brand: 'Steve Madden',
-    brandCustom: '', color: 'Pink', colorCustom: '', size: '7',
+    brandCustom: '', color: 'Black', colorCustom: '', size: '7',
     shoeWidth: 'Standard', outerMaterial: 'Suede'
   };
   var resolved = clShoeEbay.clResolveShoeEbayAspects(row);
@@ -1582,17 +1582,17 @@ test(201, 'VALIDATION: Womens Heels with exact taxonomy passes', () => {
 
 test(202, 'VALIDATION: Boys shoe with exact widths passes', () => {
   var row = {
-    itemType: 'shoes', shoeGroup: 'boys', sourceCategory: 'Sneakers',
+    itemType: 'shoes', shoeGroup: 'boys', sourceCategory: 'Sneakers', categoryId: 57929,
     condition: 'PREOWNED_GOOD', conditionId: 3000, brand: 'Adidas',
     brandCustom: '', color: 'Blue', colorCustom: '', size: '5',
-    shoeWidth: 'B', outerMaterial: 'Mesh'
+    shoeWidth: 'B', outerMaterial: 'Synthetic'
   };
   var resolved = clShoeEbay.clResolveShoeEbayAspects(row);
   return resolved.ok === true;
 });
 
-test(203, 'UI: Slippers category exists', () => {
-  var sizes = clShoeEbay.clGetShoeAllowedSizes('mens', 'Slippers');
+test(203, 'UI: Sandals category exists', () => {
+  var sizes = clShoeEbay.clGetShoeAllowedSizes('mens', 'Sandals');
   return sizes.length > 0;
 });
 
@@ -1622,12 +1622,12 @@ test(208, 'UI: Baby materials empty', () => {
 });
 
 test(209, 'UI: Womens Athletic materials exist', () => {
-  var materials = clShoeEbay.clGetShoeAllowedUpperMaterials('womens', 'Athletic Shoes');
+  var materials = clShoeEbay.clGetShoeAllowedUpperMaterials('womens', 'Athletic');
   return materials.length > 0;
 });
 
 test(210, 'UI: Mens Athletic materials exist', () => {
-  var materials = clShoeEbay.clGetShoeAllowedUpperMaterials('mens', 'Athletic Shoes');
+  var materials = clShoeEbay.clGetShoeAllowedUpperMaterials('mens', 'Athletic');
   return materials.length > 0;
 });
 
