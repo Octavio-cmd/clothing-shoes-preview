@@ -2991,8 +2991,12 @@ function clDropIncompatibleTypeState(type) {
 
 function clChangeType(type) {
   const prev = cl.type || 'clothing';
+  // Same type selected: no-op to preserve Item Info state
+  if (type === prev) {
+    return;
+  }
   clSetType(type);
-  if (type !== prev) clDropIncompatibleTypeState(type);
+  clDropIncompatibleTypeState(type);
   clAutoSKU();
   clRenderTypeGroupSelector();
 }
@@ -3024,25 +3028,43 @@ function clChangeGender(g) {
 }
 
 function clChangeShoeGroup(sg) {
-  cl.shoeGroup = sg;
-  if (sg === 'baby') {
-    toast('⚠️ Baby shoes not yet supported');
-    cl.shoeGroup = '';
+  // Same group selected: no-op to preserve Item Info state
+  if (cl.shoeGroup === sg) {
     return;
   }
-  // Clear options that may not be valid for new group
+
+  if (sg === 'baby') {
+    toast('⚠️ Baby shoes not yet supported');
+    return;
+  }
+
+  // Group changed: reconcile Item Info values against new group taxonomy
   if (cl.type === 'shoes') {
-    cl.category = '';
-    cl.size = '';
-    cl.shoeWidth = '';
-    cl.color = '';
-    cl.colorCustom = '';
-    cl.outerMaterial = '';
-    // Refresh category chips
+    // Use reconciliation helper to preserve compatible values
+    const reconciled = clShoeEbay.clReconcileShoeSelectionForGroupChange({
+      oldGroup: cl.shoeGroup,
+      newGroup: sg,
+      category: cl.category,
+      size: cl.size,
+      color: cl.color,
+      colorCustom: cl.colorCustom,
+      shoeWidth: cl.shoeWidth,
+      outerMaterial: cl.outerMaterial
+    });
+
+    cl.shoeGroup = sg;
+    cl.category = reconciled.category;
+    cl.size = reconciled.size;
+    cl.color = reconciled.color;
+    cl.colorCustom = reconciled.colorCustom;
+    cl.shoeWidth = reconciled.shoeWidth;
+    cl.outerMaterial = reconciled.outerMaterial;
+
+    // Refresh UI with new group's options
     const catChips = document.getElementById('cat-chips');
     if (catChips) {
       var allowedCats = clShoeEbay.clGetShoeAllowedCategories(sg);
-      catChips.innerHTML = allowedCats.map(c=>`<button class="cl-chip" onclick="clSetCat('${c}')">${c}</button>`).join('');
+      catChips.innerHTML = allowedCats.map(c=>`<button class="cl-chip${cl.category===c?' sel':''}" onclick="clSetCat('${c}')">${c}</button>`).join('');
     }
     clInitSizeWheel();
     clRefreshShoeColorOptions();

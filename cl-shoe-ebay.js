@@ -717,6 +717,72 @@ function clValidateShoeItemInfo(input) {
   return { ok: true };
 }
 
+// Reconcile shoe selections when group changes, preserving compatible values
+function clReconcileShoeSelectionForGroupChange(opts) {
+  const { oldGroup, newGroup, category, size, color, colorCustom, shoeWidth, outerMaterial } = opts;
+
+  let newCategory = category;
+  let newSize = size;
+  let newColor = color;
+  let newColorCustom = colorCustom;
+  let newShoeWidth = shoeWidth;
+  let newOuterMaterial = outerMaterial;
+
+  // Check if category is valid for new group
+  const newAllowedCats = clGetShoeAllowedCategories(newGroup);
+  if (!newAllowedCats.includes(category)) {
+    newCategory = '';
+    // If category isn't valid, dependent fields must clear
+    newSize = '';
+    newColor = '';
+    newColorCustom = '';
+    newShoeWidth = '';
+    newOuterMaterial = '';
+  } else if (newCategory) {
+    // Category remains valid; validate each field independently
+
+    // Size validation
+    const newAllowedSizes = clGetShoeAllowedSizes(newGroup, newCategory);
+    if (!newAllowedSizes.includes(newSize)) {
+      newSize = '';
+    }
+
+    // Color validation
+    const newAllowedColors = clGetShoeAllowedColors(newGroup, newCategory);
+    if (newColor === 'Other') {
+      // For 'Other', keep only if custom color is a valid taxonomy color
+      if (!newAllowedColors.includes(newColorCustom)) {
+        newColor = '';
+        newColorCustom = '';
+      }
+    } else if (!newAllowedColors.includes(newColor)) {
+      newColor = '';
+      newColorCustom = '';
+    }
+
+    // Width validation
+    const newAllowedWidths = clGetShoeAllowedWidths(newGroup, newCategory);
+    if (newShoeWidth && !newAllowedWidths.includes(newShoeWidth)) {
+      newShoeWidth = '';
+    }
+
+    // Material (outer/upper) validation
+    const newAllowedMaterials = clGetShoeAllowedUpperMaterials(newGroup, newCategory);
+    if (newOuterMaterial && !newAllowedMaterials.includes(newOuterMaterial)) {
+      newOuterMaterial = '';
+    }
+  }
+
+  return {
+    category: newCategory,
+    size: newSize,
+    color: newColor,
+    colorCustom: newColorCustom,
+    shoeWidth: newShoeWidth,
+    outerMaterial: newOuterMaterial
+  };
+}
+
 var clShoeEbay = {
   CL_SHOE_TAXONOMY: CL_SHOE_TAXONOMY,
   CL_SHOE_ROUTING: CL_SHOE_ROUTING,
@@ -742,7 +808,8 @@ var clShoeEbay = {
   clGetShoeAllowedUpperMaterials: clGetShoeAllowedUpperMaterials,
   CL_SHOE_SOURCE_TO_ACTIVITY: CL_SHOE_SOURCE_TO_ACTIVITY,
   clGetDerivedShoeActivity: clGetDerivedShoeActivity,
-  clValidateShoeItemInfo: clValidateShoeItemInfo
+  clValidateShoeItemInfo: clValidateShoeItemInfo,
+  clReconcileShoeSelectionForGroupChange: clReconcileShoeSelectionForGroupChange
 };
 
 if (typeof window !== 'undefined') {
