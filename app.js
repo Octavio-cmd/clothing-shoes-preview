@@ -4399,13 +4399,25 @@ function clRefreshShoeColorOptions() {
   var allowedColors = clShoeEbay.clGetShoeAllowedColors(cl.shoeGroup, cl.category);
   var colorDiv = document.querySelector('.cl-colors');
   if (colorDiv) {
+    // Preserve existing color if still valid, otherwise clear
     if (allowedColors.length > 0) {
-      colorDiv.innerHTML = allowedColors.map(c=>`<button class="cl-color-chip" onclick="clSetColor('${c}')" style="--swatch:#888" title="${c}"><span class="cname">${c}</span></button>`).join('');
+      if (cl.color === 'Other') {
+        // For 'Other', keep only if custom color is in allowedColors
+        if (!allowedColors.includes(cl.colorCustom)) {
+          cl.color = '';
+          cl.colorCustom = '';
+        }
+      } else if (cl.color && !allowedColors.includes(cl.color)) {
+        // Current color not in allowed list
+        cl.color = '';
+        cl.colorCustom = '';
+      }
+      colorDiv.innerHTML = allowedColors.map(c=>`<button class="cl-color-chip${(cl.color===c || (cl.color==='Other'&&c===cl.colorCustom))?' sel':''}" onclick="clSetColor('${c}')" style="--swatch:#888" title="${c}"><span class="cname">${c}</span></button>`).join('');
     } else {
       colorDiv.innerHTML = '';
+      cl.color = '';
+      cl.colorCustom = '';
     }
-    cl.color = '';
-    cl.colorCustom = '';
   }
 }
 
@@ -4415,21 +4427,25 @@ function clRefreshShoeWidthOptions() {
   var widthDiv = document.getElementById('shoewidth-chips');
   var widthSect = document.getElementById('shoewidth-sect');
   if (widthDiv) {
+    // Preserve existing width if still valid, otherwise clear
+    if (cl.shoeWidth && !allowedWidths.includes(cl.shoeWidth)) {
+      cl.shoeWidth = '';
+    }
     if (allowedWidths.length > 0) {
       var tax = clShoeEbay.clGetShoeTaxonomyForSelection(cl.shoeGroup, cl.category);
       var isRequired = tax && tax.aspects['Shoe Width'] && tax.aspects['Shoe Width'].required;
       var html = '';
       if (!isRequired) {
-        html += `<button class="cl-chip cl-shoewidth-chip" data-v="" onclick="clSetShoeWidth('')">Not Specified</button>`;
+        html += `<button class="cl-chip cl-shoewidth-chip${!cl.shoeWidth?' sel':''}" data-v="" onclick="clSetShoeWidth('')">Not Specified</button>`;
       }
-      html += allowedWidths.map(w=>`<button class="cl-chip cl-shoewidth-chip" data-v="${w}" onclick="clSetShoeWidth('${w}')">${w}</button>`).join('');
+      html += allowedWidths.map(w=>`<button class="cl-chip cl-shoewidth-chip${cl.shoeWidth===w?' sel':''}" data-v="${w}" onclick="clSetShoeWidth('${w}')">${w}</button>`).join('');
       widthDiv.innerHTML = html;
       if (widthSect) widthSect.style.display = 'block';
     } else {
       widthDiv.innerHTML = '';
       if (widthSect) widthSect.style.display = 'none';
+      cl.shoeWidth = '';
     }
-    cl.shoeWidth = '';
   }
 }
 
@@ -4439,14 +4455,18 @@ function clRefreshShoeUpperMaterialOptions() {
   var materialDiv = document.getElementById('uppermaterial-chips');
   var materialSect = document.getElementById('uppermaterial-sect');
   if (materialDiv) {
+    // Preserve existing material if still valid, otherwise clear
+    if (cl.outerMaterial && !allowedMaterials.includes(cl.outerMaterial)) {
+      cl.outerMaterial = '';
+    }
     if (allowedMaterials.length > 0) {
-      materialDiv.innerHTML = allowedMaterials.map(m=>`<button class="cl-chip" data-v="${m}" onclick="clSetOuterMaterial('${m}')" title="${m}">${m}</button>`).join('');
+      materialDiv.innerHTML = allowedMaterials.map(m=>`<button class="cl-chip${cl.outerMaterial===m?' sel':''}" data-v="${m}" onclick="clSetOuterMaterial('${m}')" title="${m}">${m}</button>`).join('');
       if (materialSect) materialSect.style.display = 'block';
     } else {
       materialDiv.innerHTML = '';
       if (materialSect) materialSect.style.display = 'none';
+      cl.outerMaterial = '';
     }
-    cl.outerMaterial = '';
   }
 }
 
