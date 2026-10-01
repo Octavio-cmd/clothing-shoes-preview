@@ -2993,11 +2993,12 @@ function clChangeType(type) {
   const prev = cl.type || 'clothing';
   clSetType(type);
   if (type !== prev) clDropIncompatibleTypeState(type);
+  clAutoSKU();
   clRenderTypeGroupSelector();
 }
 
 function clRenderTypeGroupSelector() {
-  const container = document.querySelector('.cl-sect:nth-of-type(2)');
+  const container = document.getElementById('cl-type-group-selector');
   if (!container) return;
   const isShoes = cl.type === 'shoes';
   const label = isShoes ? 'SHOE GROUP' : 'GENDER';
@@ -3404,7 +3405,7 @@ function clRenderSKU() {
       </div>
     </div>
 
-    <div class="cl-sect" style="margin-top:12px"></div>
+    <div class="cl-sect" id="cl-type-group-selector" style="margin-top:12px"></div>
     <button class="add-btn" onclick="clStep1Next()">Continue →</button>`;
   clAutoSKU();
   clRenderTypeGroupSelector();
